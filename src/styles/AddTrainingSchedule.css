@@ -1,0 +1,273 @@
+.training-form-page {
+  min-height: 100vh;
+  padding: 30px;
+  background: #f4f6f8;
+}
+
+.training-form-container {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.training-form-header {
+  position: relative;
+  padding: 30px;
+  margin-bottom: 22px;
+  color: #ffffff;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(234, 168, 64, 0.2),
+      transparent 36%
+    ),
+    linear-gradient(135deg, #111827, #1f2937);
+  border-radius: 19px;
+  box-shadow: 0 13px 32px rgba(17, 24, 39, 0.18);
+}
+
+.training-form-back {
+  margin-bottom: 26px;
+  padding: 10px 15px;
+  color: #ffffff;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.training-form-header > div > span {
+  color: #eaa840;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.training-form-header h1 {
+  margin: 5px 0 0;
+  color: #ffffff;
+  font-size: 36px;
+}
+
+.training-form-header p {
+  margin: 9px 0 0;
+  color: #d1d5db;
+  line-height: 1.6;
+}
+
+.training-form-message,
+.training-form-loading {
+  padding: 15px 18px;
+  margin-bottom: 20px;
+  background: #fff8e8;
+  border: 1px solid #f1d292;
+  border-left: 5px solid #eaa840;
+  border-radius: 11px;
+  color: #65450e;
+  font-weight: 700;
+}
+
+.training-schedule-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.training-form-card {
+  padding: 25px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 17px;
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.06);
+}
+
+.training-form-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding-bottom: 17px;
+  margin-bottom: 21px;
+  border-bottom: 1px solid #e9edf2;
+}
+
+.training-form-card-icon {
+  display: flex;
+  width: 43px;
+  height: 43px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #fff3df;
+  border-radius: 12px;
+  font-size: 20px;
+}
+
+.training-form-card-heading h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 21px;
+}
+
+.training-form-card-heading p {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.training-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.training-form-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.training-form-field.full-width {
+  margin-top: 20px;
+}
+
+.training-form-field > span {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.training-form-field input,
+.training-form-field select,
+.training-form-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 13px;
+  color: #111827;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font: inherit;
+  outline: none;
+}
+
+.training-form-field input,
+.training-form-field select {
+  min-height: 45px;
+}
+
+.training-form-field textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.training-form-field input:focus,
+.training-form-field select:focus,
+.training-form-field textarea:focus {
+  border-color: #eaa840;
+  box-shadow: 0 0 0 3px rgba(234, 168, 64, 0.17);
+}
+
+.training-reminder-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.training-reminder-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 11px 13px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.training-reminder-option input {
+  width: 17px;
+  height: 17px;
+  accent-color: #eaa840;
+}
+
+.training-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px 23px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 15px;
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.06);
+}
+
+.training-form-cancel,
+.training-form-submit {
+  min-height: 45px;
+  padding: 11px 20px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.training-form-cancel {
+  color: #374151;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+}
+
+.training-form-submit {
+  color: #111827;
+  background: #eaa840;
+  border: 1px solid #eaa840;
+}
+
+.training-form-submit:hover {
+  background: #d99631;
+}
+
+.training-form-cancel:disabled,
+.training-form-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 750px) {
+  .training-form-page {
+    padding: 12px;
+  }
+
+  .training-form-header {
+    padding: 21px;
+  }
+
+  .training-form-header h1 {
+    font-size: 29px;
+  }
+
+  .training-form-card {
+    padding: 18px;
+  }
+
+  .training-form-grid,
+  .training-reminder-options {
+    grid-template-columns: 1fr;
+  }
+
+  .training-form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .training-form-cancel,
+  .training-form-submit {
+    width: 100%;
+  }
+}

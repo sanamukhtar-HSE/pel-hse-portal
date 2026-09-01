@@ -171,13 +171,14 @@ function Dashboard() {
             </span>
           </button>
 
-          <button>
-            <span className="dashboard-nav-icon">🎓</span>
-            <span>
-              <strong>Training</strong>
-              <small>Coming soon</small>
-            </span>
-          </button>
+          <button onClick={() => navigate("/training")}>
+  <span className="dashboard-nav-icon">🎓</span>
+
+  <span>
+    <strong>Training</strong>
+    <small>Training records and calendar</small>
+  </span>
+</button>
 
           {(user?.user_type === "Admin" || user?.user_type === "HSE") && (
             <button>

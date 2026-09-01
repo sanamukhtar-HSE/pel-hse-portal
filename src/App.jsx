@@ -13,6 +13,8 @@ import Login from "./pages/Login";
 import { UserProvider } from "./context/UserContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleRoute from "./components/RoleRoute";
+import Training from "./pages/Training";
+import AddTrainingSchedule from "./pages/AddTrainingSchedule";
 
 function App() {
   return (
@@ -57,6 +59,15 @@ function App() {
             }
           />
 
+<Route
+  path="/training/schedule/new"
+  element={
+    <RoleRoute allowedRoles={["Admin", "HSE"]}>
+      <AddTrainingSchedule />
+    </RoleRoute>
+  }
+/>
+
           <Route
             path="/reports"
             element={
@@ -83,6 +94,15 @@ function App() {
               </RoleRoute>
             }
           />
+
+<Route
+  path="/training"
+  element={
+    <ProtectedRoute>
+      <Training />
+    </ProtectedRoute>
+  }
+/>
 
           <Route
             path="/investigation/:id"
