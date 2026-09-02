@@ -13,14 +13,51 @@ function Training() {
 
   const [activeTab, setActiveTab] = useState("overview");
   const [sessions, setSessions] = useState([]);
+  const [sites, setSites] = useState([]);
+  const [selectedSiteId, setSelectedSiteId] = useState("");
+
+  const [openTrainingId, setOpenTrainingId] = useState(null);
+
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     if (user) {
-      loadTrainingSessions();
+      loadSites();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadTrainingSessions();
+    }
+  }, [user, selectedSiteId]);
+
+  async function loadSites() {
+    const { data, error } = await supabase
+      .from("sites")
+      .select("id, name")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Training sites loading failed:", error);
+      return;
+    }
+
+    setSites(data || []);
+
+    /*
+      Normal users are automatically locked to their
+      assigned site.
+    */
+    if (
+      user?.user_type !== "Admin" &&
+      user?.user_type !== "HSE" &&
+      user?.site_id
+    ) {
+      setSelectedSiteId(String(user.site_id));
+    }
+  }
 
   async function loadTrainingSessions() {
     setLoadingSessions(true);
@@ -42,6 +79,16 @@ function Training() {
         frequency,
         session_category,
         remarks,
+        completed_date,
+        participant_count,
+        present_count,
+        absent_count,
+        non_completion_reason,
+        rescheduled_date,
+        original_session_id,
+        reminder_days,
+        responsible_user_id,
+        responsible_email,
         sites (
           name
         ),
@@ -52,15 +99,18 @@ function Training() {
       .order("session_date", { ascending: true });
 
     /*
-      Admin sees all sites.
+      Admin and HSE users can view/filter all sites.
 
-      All other users see only their assigned site.
+      All other users only see their assigned site.
     */
     if (
       user?.user_type !== "Admin" &&
+      user?.user_type !== "HSE" &&
       user?.site_id
     ) {
       query = query.eq("site_id", user.site_id);
+    } else if (selectedSiteId) {
+      query = query.eq("site_id", selectedSiteId);
     }
 
     const { data, error } = await query;
@@ -116,6 +166,7 @@ function Training() {
     today.setHours(0, 0, 0, 0);
 
     const sevenDaysFromNow = new Date(today);
+
     sevenDaysFromNow.setDate(
       sevenDaysFromNow.getDate() + 7
     );
@@ -130,7 +181,8 @@ function Training() {
         `${session.session_date}T00:00:00`
       );
 
-      const displayStatus = getSessionStatus(session);
+      const displayStatus =
+        getSessionStatus(session);
 
       if (
         displayStatus === "Scheduled" ||
@@ -180,7 +232,8 @@ function Training() {
           `${session.session_date}T00:00:00`
         );
 
-        const displayStatus = getSessionStatus(session);
+        const displayStatus =
+          getSessionStatus(session);
 
         return (
           sessionDate >= today &&
@@ -228,7 +281,9 @@ function Training() {
       return "Date not set";
     }
 
-    const date = new Date(`${dateValue}T00:00:00`);
+    const date = new Date(
+      `${dateValue}T00:00:00`
+    );
 
     return date.toLocaleDateString("en-GB", {
       day: "2-digit",
@@ -242,9 +297,11 @@ function Training() {
       return "Time not set";
     }
 
-    const [hours, minutes] = timeValue.split(":");
+    const [hours, minutes] =
+      timeValue.split(":");
 
     const date = new Date();
+
     date.setHours(
       Number(hours),
       Number(minutes),
@@ -263,7 +320,9 @@ function Training() {
       return "";
     }
 
-    const date = new Date(`${dateValue}T00:00:00`);
+    const date = new Date(
+      `${dateValue}T00:00:00`
+    );
 
     return date
       .toLocaleDateString("en-US", {
@@ -277,13 +336,20 @@ function Training() {
       return "";
     }
 
-    const date = new Date(`${dateValue}T00:00:00`);
+    const date = new Date(
+      `${dateValue}T00:00:00`
+    );
 
-    return String(date.getDate()).padStart(2, "0");
+    return String(
+      date.getDate()
+    ).padStart(2, "0");
   }
 
   function getSiteName(session) {
-    return session.sites?.name || "Site not assigned";
+    return (
+      session.sites?.name ||
+      "Site not assigned"
+    );
   }
 
   function getTrainingType(session) {
@@ -327,120 +393,166 @@ function Training() {
     return "scheduled";
   }
 
+  function openTrainingFromRegister(
+    sessionId
+  ) {
+    setOpenTrainingId(sessionId);
+    setActiveTab("calendar");
+  }
+
   function renderSessionCards(
-  sessionList,
-  emptyTitle,
-  emptyText,
-  sectionType = "standard"
-) {
-  if (loadingSessions) {
+    sessionList,
+    emptyTitle,
+    emptyText,
+    sectionType = "standard"
+  ) {
+    if (loadingSessions) {
+      return (
+        <div className="training-empty-state compact">
+          <div>⏳</div>
+
+          <h3>
+            Loading training schedule
+          </h3>
+
+          <p>
+            Please wait while the records are loaded.
+          </p>
+        </div>
+      );
+    }
+
+    if (sessionList.length === 0) {
+      return (
+        <div className="training-empty-state compact">
+          <div>
+            {sectionType === "completed"
+              ? "✓"
+              : "📅"}
+          </div>
+
+          <h3>{emptyTitle}</h3>
+
+          <p>{emptyText}</p>
+        </div>
+      );
+    }
+
     return (
-      <div className="training-empty-state compact">
-        <div>⏳</div>
-        <h3>Loading training schedule</h3>
-        <p>Please wait while the records are loaded.</p>
+      <div
+        className={`training-event-grid ${
+          sessionList.length === 1
+            ? "single-event"
+            : sessionList.length === 2
+            ? "two-events"
+            : ""
+        }`}
+      >
+        {sessionList.map((session) => {
+          const displayStatus =
+            getSessionStatus(session);
+
+          return (
+            <article
+              className={`training-event-card ${getStatusClass(
+                displayStatus
+              )}`}
+              key={session.id}
+            >
+              <div className="training-date-block">
+                <div className="training-date-month">
+                  {getMonth(
+                    session.session_date
+                  )}
+                </div>
+
+                <div className="training-date-day">
+                  {getDay(
+                    session.session_date
+                  )}
+                </div>
+              </div>
+
+              <div className="training-event-content">
+                <div className="training-event-topline">
+                  <span
+                    className={`training-event-status ${getStatusClass(
+                      displayStatus
+                    )}`}
+                  >
+                    {displayStatus}
+                  </span>
+
+                  <span className="training-event-category">
+                    {session.session_category ||
+                      "Formal Training"}
+                  </span>
+                </div>
+
+                <h3>{session.title}</h3>
+
+                <p className="training-event-site">
+                  📍 {getSiteName(session)}
+                </p>
+
+                <div className="training-event-information">
+                  <span>
+                    🕒{" "}
+                    {formatTime(
+                      session.start_time
+                    )}
+                  </span>
+
+                  {session.trainer_name && (
+                    <span>
+                      👤{" "}
+                      {session.trainer_name}
+                    </span>
+                  )}
+                </div>
+
+                <div className="training-event-footer">
+                  <span>
+                    {formatDate(
+                      session.session_date
+                    )}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openTrainingFromRegister(
+                        session.id
+                      )
+                    }
+                  >
+                    View Details →
+                  </button>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
     );
   }
 
-  if (sessionList.length === 0) {
-    return (
-      <div className="training-empty-state compact">
-        <div>{sectionType === "completed" ? "✓" : "📅"}</div>
-        <h3>{emptyTitle}</h3>
-        <p>{emptyText}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={`training-event-grid ${
-        sessionList.length === 1
-          ? "single-event"
-          : sessionList.length === 2
-          ? "two-events"
-          : ""
-      }`}
-    >
-      {sessionList.map((session) => {
-        const displayStatus = getSessionStatus(session);
-
-        return (
-          <article
-            className={`training-event-card ${getStatusClass(
-              displayStatus
-            )}`}
-            key={session.id}
-          >
-            <div className="training-date-block">
-              <div className="training-date-month">
-                {getMonth(session.session_date)}
-              </div>
-
-              <div className="training-date-day">
-                {getDay(session.session_date)}
-              </div>
-            </div>
-
-            <div className="training-event-content">
-              <div className="training-event-topline">
-                <span
-                  className={`training-event-status ${getStatusClass(
-                    displayStatus
-                  )}`}
-                >
-                  {displayStatus}
-                </span>
-
-                <span className="training-event-category">
-                  {session.session_category || "Formal Training"}
-                </span>
-              </div>
-
-              <h3>{session.title}</h3>
-
-              <p className="training-event-site">
-                📍 {getSiteName(session)}
-              </p>
-
-              <div className="training-event-information">
-                <span>
-                  🕒 {formatTime(session.start_time)}
-                </span>
-
-                {session.trainer_name && (
-                  <span>👤 {session.trainer_name}</span>
-                )}
-              </div>
-
-              <div className="training-event-footer">
-                <span>{formatDate(session.session_date)}</span>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("calendar")}
-                >
-                  View Details →
-                </button>
-              </div>
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  );
-}
+  const isSiteFilterEnabled =
+    user?.user_type === "Admin" ||
+    user?.user_type === "HSE";
 
   return (
     <div className="training-page">
       <div className="training-container">
+
         <header className="training-header">
           <div className="training-header-top">
             <button
               type="button"
               className="training-back-button"
-              onClick={() => navigate("/")}
+              onClick={() =>
+                navigate("/")
+              }
             >
               ← Dashboard
             </button>
@@ -474,14 +586,19 @@ function Training() {
           </div>
 
           <div className="training-header-copy">
-            <span>HSE Capability Development</span>
+            <span>
+              HSE Capability Development
+            </span>
 
-            <h1>Training Management</h1>
+            <h1>
+              Training Management
+            </h1>
 
             <p>
-              Plan training activities, monitor upcoming
-              schedules, track completion and identify
-              overdue sessions across PEPL locations.
+              Plan training activities, monitor
+              upcoming schedules, track completion
+              and identify overdue sessions across
+              PEPL locations.
             </p>
           </div>
         </header>
@@ -490,7 +607,9 @@ function Training() {
           <button
             type="button"
             className={
-              activeTab === "overview" ? "active" : ""
+              activeTab === "overview"
+                ? "active"
+                : ""
             }
             onClick={() =>
               setActiveTab("overview")
@@ -502,7 +621,9 @@ function Training() {
           <button
             type="button"
             className={
-              activeTab === "register" ? "active" : ""
+              activeTab === "register"
+                ? "active"
+                : ""
             }
             onClick={() =>
               setActiveTab("register")
@@ -514,7 +635,9 @@ function Training() {
           <button
             type="button"
             className={
-              activeTab === "calendar" ? "active" : ""
+              activeTab === "calendar"
+                ? "active"
+                : ""
             }
             onClick={() =>
               setActiveTab("calendar")
@@ -523,6 +646,64 @@ function Training() {
             Calendar
           </button>
         </nav>
+
+        <div className="training-filter-bar">
+          <div className="training-filter-label">
+            <span>
+              Filter by Site
+            </span>
+
+            <strong>
+              {selectedSiteId === ""
+                ? "All Sites"
+                : sites.find(
+                    (site) =>
+                      String(site.id) ===
+                      String(selectedSiteId)
+                  )?.name ||
+                  "Selected Site"}
+            </strong>
+          </div>
+
+          <select
+            className="training-site-filter"
+            value={selectedSiteId}
+            onChange={(event) =>
+              setSelectedSiteId(
+                event.target.value
+              )
+            }
+            disabled={
+              !isSiteFilterEnabled
+            }
+          >
+            {isSiteFilterEnabled && (
+              <option value="">
+                All Sites
+              </option>
+            )}
+
+            {sites
+              .filter((site) => {
+                if (isSiteFilterEnabled) {
+                  return true;
+                }
+
+                return (
+                  String(site.id) ===
+                  String(user?.site_id)
+                );
+              })
+              .map((site) => (
+                <option
+                  key={site.id}
+                  value={site.id}
+                >
+                  {site.name}
+                </option>
+              ))}
+          </select>
+        </div>
 
         {errorMessage && (
           <div className="training-form-message">
@@ -541,7 +722,9 @@ function Training() {
                 </div>
 
                 <div>
-                  <span>Scheduled Trainings</span>
+                  <span>
+                    Scheduled Trainings
+                  </span>
 
                   <strong>
                     {loadingSessions
@@ -561,7 +744,9 @@ function Training() {
                 </div>
 
                 <div>
-                  <span>Completed Trainings</span>
+                  <span>
+                    Completed Trainings
+                  </span>
 
                   <strong>
                     {loadingSessions
@@ -581,7 +766,9 @@ function Training() {
                 </div>
 
                 <div>
-                  <span>Due This Week</span>
+                  <span>
+                    Due This Week
+                  </span>
 
                   <strong>
                     {loadingSessions
@@ -601,7 +788,9 @@ function Training() {
                 </div>
 
                 <div>
-                  <span>Overdue Trainings</span>
+                  <span>
+                    Overdue Trainings
+                  </span>
 
                   <strong>
                     {loadingSessions
@@ -619,12 +808,17 @@ function Training() {
             <section className="training-section">
               <div className="training-section-heading">
                 <div>
-                  <span>Upcoming Schedule</span>
+                  <span>
+                    Upcoming Schedule
+                  </span>
 
-                  <h2>Upcoming Training Events</h2>
+                  <h2>
+                    Upcoming Training Events
+                  </h2>
 
                   <p>
-                    Trainings scheduled from today onward.
+                    Trainings scheduled from today
+                    onward.
                   </p>
                 </div>
 
@@ -640,72 +834,87 @@ function Training() {
               </div>
 
               {renderSessionCards(
-  upcomingSessions,
-  "No upcoming training",
-  "No training sessions are currently scheduled.",
-  "upcoming"
-)}
+                upcomingSessions,
+                "No upcoming training",
+                "No training sessions are currently scheduled.",
+                "upcoming"
+              )}
             </section>
 
             {overdueSessions.length > 0 && (
               <section className="training-section">
                 <div className="training-section-heading">
                   <div>
-                    <span>Management Attention</span>
+                    <span>
+                      Management Attention
+                    </span>
 
-                    <h2>Overdue Trainings</h2>
+                    <h2>
+                      Overdue Trainings
+                    </h2>
 
                     <p>
-                      Scheduled sessions requiring an
-                      immediate completion update.
+                      Scheduled sessions requiring
+                      an immediate completion update.
                     </p>
                   </div>
                 </div>
 
                 {renderSessionCards(
-  overdueSessions,
-  "No overdue training",
-  "All scheduled training activities are currently on track.",
-  "overdue"
-)}
+                  overdueSessions,
+                  "No overdue training",
+                  "All scheduled training activities are currently on track.",
+                  "overdue"
+                )}
               </section>
             )}
 
             <section className="training-section">
               <div className="training-section-heading">
                 <div>
-                  <span>Latest Completion</span>
+                  <span>
+                    Latest Completion
+                  </span>
 
-                  <h2>Recently Completed</h2>
+                  <h2>
+                    Recently Completed
+                  </h2>
 
                   <p>
-                    The most recently completed training
-                    activities.
+                    The most recently completed
+                    training activities.
                   </p>
                 </div>
               </div>
 
               {renderSessionCards(
-  completedSessions,
-  "No completed trainings yet",
-  "Completed sessions will appear here after they are marked as done.",
-  "completed"
-)}
+                completedSessions,
+                "No completed trainings yet",
+                "Completed sessions will appear here after they are marked as done.",
+                "completed"
+              )}
             </section>
           </>
         )}
 
         {activeTab === "calendar" && (
-          <TrainingCalendar />
+          <TrainingCalendar
+            selectedSiteId={selectedSiteId}
+            openSessionId={openTrainingId}
+          />
         )}
 
         {activeTab === "register" && (
           <section className="training-section">
             <div className="training-section-heading">
               <div>
-                <span>Training Records</span>
+                <span>
+                  Training Records
+                </span>
 
-                <h2>Training Register</h2>
+                <h2>
+                  Training Register
+                </h2>
 
                 <p>
                   A complete list of training sessions
@@ -716,7 +925,9 @@ function Training() {
               <button
                 type="button"
                 className="training-link-button"
-                onClick={loadTrainingSessions}
+                onClick={
+                  loadTrainingSessions
+                }
               >
                 Refresh Register
               </button>
@@ -725,7 +936,11 @@ function Training() {
             {loadingSessions ? (
               <div className="training-empty-state">
                 <div>⏳</div>
-                <h3>Loading training register</h3>
+
+                <h3>
+                  Loading training register
+                </h3>
+
                 <p>
                   Please wait while the records load.
                 </p>
@@ -733,10 +948,14 @@ function Training() {
             ) : sessions.length === 0 ? (
               <div className="training-empty-state">
                 <div>📋</div>
-                <h3>No training records found</h3>
+
+                <h3>
+                  No training records found
+                </h3>
+
                 <p>
-                  Scheduled training events will appear
-                  here.
+                  Scheduled training events will
+                  appear here.
                 </p>
               </div>
             ) : (
@@ -749,12 +968,21 @@ function Training() {
                     <article
                       className="training-record-row"
                       key={session.id}
+                      onClick={() =>
+                        openTrainingFromRegister(
+                          session.id
+                        )
+                      }
+                      style={{
+                        cursor: "pointer",
+                      }}
                     >
                       <div className="training-record-person">
                         <div className="training-record-avatar">
                           {session.title
                             ?.charAt(0)
-                            ?.toUpperCase() || "T"}
+                            ?.toUpperCase() ||
+                            "T"}
                         </div>
 
                         <div>
@@ -763,16 +991,22 @@ function Training() {
                           </strong>
 
                           <span>
-                            {getSiteName(session)}
+                            {getSiteName(
+                              session
+                            )}
                           </span>
                         </div>
                       </div>
 
                       <div className="training-record-detail">
-                        <span>Training Type</span>
+                        <span>
+                          Training Type
+                        </span>
 
                         <strong>
-                          {getTrainingType(session)}
+                          {getTrainingType(
+                            session
+                          )}
                         </strong>
                       </div>
 
