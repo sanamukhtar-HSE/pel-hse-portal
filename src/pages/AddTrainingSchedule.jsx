@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { useUser } from "../context/UserContext";
 import "../styles/AddTrainingSchedule.css";
 
 const initialForm = {
@@ -22,6 +23,7 @@ const initialForm = {
 
 function AddTrainingSchedule() {
   const navigate = useNavigate();
+  const { user } = useUser();
 
   const [form, setForm] = useState(initialForm);
   const [trainingTypes, setTrainingTypes] = useState([]);
@@ -32,9 +34,19 @@ function AddTrainingSchedule() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  const isAdmin = user?.user_type === "Admin";
+  const isHSE = user?.user_type === "HSE";
+  const isPlantIncharge =
+    user?.user_type === "Plant Incharge";
+
+  const isAssignedSiteUser =
+    isHSE || isPlantIncharge;
+
   useEffect(() => {
-    loadFormData();
-  }, []);
+    if (user) {
+      loadFormData();
+    }
+  }, [user]);
 
   async function loadFormData() {
     setLoadingData(true);
@@ -47,26 +59,41 @@ function AddTrainingSchedule() {
     ] = await Promise.all([
       supabase
         .from("training_types")
-        .select("id, name, validity_months, mandatory")
-        .order("name", { ascending: true }),
+        .select(
+          "id, name, validity_months, mandatory"
+        )
+        .order("name", {
+          ascending: true,
+        }),
 
       supabase
         .from("sites")
         .select("id, name")
-        .order("name", { ascending: true }),
+        .order("name", {
+          ascending: true,
+        }),
 
       supabase
         .from("employees")
         .select("*")
-        .order("full_name", { ascending: true }),
+        .order("full_name", {
+          ascending: true,
+        }),
     ]);
 
-    if (typeError || siteError || employeeError) {
-      console.error("Training form data loading failed:", {
-        typeError,
-        siteError,
-        employeeError,
-      });
+    if (
+      typeError ||
+      siteError ||
+      employeeError
+    ) {
+      console.error(
+        "Training form data loading failed:",
+        {
+          typeError,
+          siteError,
+          employeeError,
+        }
+      );
 
       setMessage(
         typeError?.message ||
@@ -79,17 +106,50 @@ function AddTrainingSchedule() {
     setTrainingTypes(typeData || []);
     setSites(siteData || []);
     setEmployees(employeeData || []);
+
+    /*
+      HSE and Plant Incharge:
+      automatically use their assigned site.
+
+      Admin:
+      can choose any site.
+    */
+    if (
+      isAssignedSiteUser &&
+      user?.site_id
+    ) {
+      setForm((current) => ({
+        ...current,
+        site_id: String(user.site_id),
+      }));
+    }
+
     setLoadingData(false);
   }
 
+  const selectedSiteName = useMemo(() => {
+    if (!form.site_id) {
+      return "";
+    }
+
+    return (
+      sites.find(
+        (site) =>
+          String(site.id) ===
+          String(form.site_id)
+      )?.name || ""
+    );
+  }, [sites, form.site_id]);
+
   const responsibleEmployees = useMemo(() => {
     if (!form.site_id) {
-      return employees;
+      return [];
     }
 
     return employees.filter(
       (employee) =>
-        String(employee.site_id || "") === String(form.site_id)
+        String(employee.site_id || "") ===
+        String(form.site_id)
     );
   }, [employees, form.site_id]);
 
@@ -100,27 +160,53 @@ function AddTrainingSchedule() {
     }));
   }
 
+  function handleSiteChange(value) {
+    // Non-admin users cannot change site.
+    if (!isAdmin) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      site_id: value,
+      responsible_user_id: "",
+    }));
+  }
+
   function handleTrainingTypeChange(value) {
-    const selectedType = trainingTypes.find(
-      (type) => String(type.id) === String(value)
-    );
+    const selectedType =
+      trainingTypes.find(
+        (type) =>
+          String(type.id) ===
+          String(value)
+      );
 
     setForm((current) => ({
       ...current,
       training_type_id: value,
-      title: selectedType?.name || current.title,
+      title:
+        selectedType?.name ||
+        current.title,
     }));
   }
 
   function handleReminderChange(value) {
     setForm((current) => {
-      const alreadySelected = current.reminder_days.includes(value);
+      const alreadySelected =
+        current.reminder_days.includes(
+          value
+        );
 
       return {
         ...current,
         reminder_days: alreadySelected
-          ? current.reminder_days.filter((day) => day !== value)
-          : [...current.reminder_days, value],
+          ? current.reminder_days.filter(
+              (day) => day !== value
+            )
+          : [
+              ...current.reminder_days,
+              value,
+            ],
       };
     });
   }
@@ -136,17 +222,27 @@ function AddTrainingSchedule() {
   }
 
   function getEmployeeEmail(employee) {
-    return employee.email || employee.work_email || "";
+    return (
+      employee.email ||
+      employee.work_email ||
+      ""
+    );
   }
 
-  function createOccurrenceDates(startDate, frequency, repeatUntil) {
+  function createOccurrenceDates(
+    startDate,
+    frequency,
+    repeatUntil
+  ) {
     const dates = [];
 
     if (!startDate) {
       return dates;
     }
 
-    const current = new Date(`${startDate}T12:00:00`);
+    const current = new Date(
+      `${startDate}T12:00:00`
+    );
 
     if (frequency === "One Time") {
       return [startDate];
@@ -156,25 +252,41 @@ function AddTrainingSchedule() {
       return [startDate];
     }
 
-    const finalDate = new Date(`${repeatUntil}T12:00:00`);
+    const finalDate = new Date(
+      `${repeatUntil}T12:00:00`
+    );
 
     while (current <= finalDate) {
-      dates.push(current.toISOString().slice(0, 10));
+      dates.push(
+        current
+          .toISOString()
+          .slice(0, 10)
+      );
 
       if (frequency === "Daily") {
-        current.setDate(current.getDate() + 1);
+        current.setDate(
+          current.getDate() + 1
+        );
       }
 
       if (frequency === "Weekly") {
-        current.setDate(current.getDate() + 7);
+        current.setDate(
+          current.getDate() + 7
+        );
       }
 
       if (frequency === "Monthly") {
-        const originalDay = current.getDate();
+        const originalDay =
+          current.getDate();
 
-        current.setMonth(current.getMonth() + 1);
+        current.setMonth(
+          current.getMonth() + 1
+        );
 
-        if (current.getDate() !== originalDay) {
+        if (
+          current.getDate() !==
+          originalDay
+        ) {
           current.setDate(0);
         }
       }
@@ -186,6 +298,36 @@ function AddTrainingSchedule() {
   async function handleSubmit(event) {
     event.preventDefault();
     setMessage("");
+
+    /*
+      Final frontend protection:
+      HSE / Plant Incharge must have
+      an assigned site.
+    */
+    if (
+      isAssignedSiteUser &&
+      !user?.site_id
+    ) {
+      setMessage(
+        "Your employee record does not have an assigned site. Please contact Admin."
+      );
+      return;
+    }
+
+    /*
+      Make absolutely sure the submitted site
+      matches the user's assigned site.
+    */
+    if (
+      isAssignedSiteUser &&
+      String(form.site_id) !==
+        String(user.site_id)
+    ) {
+      setMessage(
+        "You can only schedule training for your assigned site."
+      );
+      return;
+    }
 
     if (
       !form.training_type_id ||
@@ -211,7 +353,8 @@ function AddTrainingSchedule() {
 
     if (
       form.repeat_until &&
-      form.repeat_until < form.session_date
+      form.repeat_until <
+        form.session_date
     ) {
       setMessage(
         "The repeat-until date cannot be earlier than the first training date."
@@ -219,20 +362,42 @@ function AddTrainingSchedule() {
       return;
     }
 
-    const selectedResponsible = employees.find(
-      (employee) =>
-        String(employee.id) ===
-        String(form.responsible_user_id)
-    );
+    const selectedResponsible =
+      employees.find(
+        (employee) =>
+          String(employee.id) ===
+          String(
+            form.responsible_user_id
+          )
+      );
 
-    const occurrenceDates = createOccurrenceDates(
-      form.session_date,
-      form.frequency,
-      form.repeat_until
-    );
+    /*
+      Make sure responsible person belongs
+      to the selected site.
+    */
+    if (
+      selectedResponsible &&
+      String(
+        selectedResponsible.site_id || ""
+      ) !== String(form.site_id)
+    ) {
+      setMessage(
+        "The responsible person must belong to the selected site."
+      );
+      return;
+    }
+
+    const occurrenceDates =
+      createOccurrenceDates(
+        form.session_date,
+        form.frequency,
+        form.repeat_until
+      );
 
     if (occurrenceDates.length === 0) {
-      setMessage("No valid schedule dates were generated.");
+      setMessage(
+        "No valid schedule dates were generated."
+      );
       return;
     }
 
@@ -243,64 +408,125 @@ function AddTrainingSchedule() {
       return;
     }
 
-    const reminderDays = form.reminder_days
-      .map(Number)
-      .filter((day) => Number.isInteger(day) && day >= 0)
-      .sort((a, b) => b - a);
+    const reminderDays =
+      form.reminder_days
+        .map(Number)
+        .filter(
+          (day) =>
+            Number.isInteger(day) &&
+            day >= 0
+        )
+        .sort((a, b) => b - a);
 
-    const sessionsToInsert = occurrenceDates.map((date) => ({
-      training_type_id: Number(form.training_type_id),
-      site_id: Number(form.site_id),
-      title: form.title.trim(),
-      trainer_name: form.trainer_name.trim() || null,
-      session_date: date,
-      start_time: form.start_time || null,
-      end_time: form.end_time || null,
-      venue: form.venue.trim() || null,
-      status: "Scheduled",
-      remarks: form.remarks.trim() || null,
+    const sessionsToInsert =
+      occurrenceDates.map((date) => ({
+        training_type_id:
+          Number(form.training_type_id),
 
-      frequency: form.frequency,
-      repeat_until:
-        form.frequency === "One Time"
-          ? null
-          : form.repeat_until,
+        site_id:
+          Number(form.site_id),
 
-      reminder_days: reminderDays,
+        title:
+          form.title.trim(),
 
-      responsible_user_id: form.responsible_user_id
-        ? Number(form.responsible_user_id)
-        : null,
+        trainer_name:
+          form.trainer_name.trim() ||
+          null,
 
-      responsible_email: selectedResponsible
-        ? getEmployeeEmail(selectedResponsible) || null
-        : null,
+        session_date: date,
 
-      session_category: form.session_category,
-    }));
+        start_time:
+          form.start_time || null,
+
+        end_time:
+          form.end_time || null,
+
+        venue:
+          form.venue.trim() || null,
+
+        status: "Scheduled",
+
+        remarks:
+          form.remarks.trim() || null,
+
+        frequency:
+          form.frequency,
+
+        repeat_until:
+          form.frequency ===
+          "One Time"
+            ? null
+            : form.repeat_until,
+
+        reminder_days:
+          reminderDays,
+
+        responsible_user_id:
+          form.responsible_user_id
+            ? Number(
+                form.responsible_user_id
+              )
+            : null,
+
+        responsible_email:
+          selectedResponsible
+            ? getEmployeeEmail(
+                selectedResponsible
+              ) || null
+            : null,
+
+        session_category:
+          form.session_category,
+      }));
 
     setSaving(true);
 
-    const { data, error } = await supabase
-      .from("training_sessions")
-      .insert(sessionsToInsert)
-      .select("id, title, session_date");
+    const { data, error } =
+      await supabase
+        .from("training_sessions")
+        .insert(
+          sessionsToInsert
+        )
+        .select(
+          "id, title, session_date"
+        );
 
     setSaving(false);
 
     if (error) {
-      console.error("Training schedule save failed:", error);
+      console.error(
+        "Training schedule save failed:",
+        error
+      );
+
       setMessage(error.message);
       return;
     }
 
     setMessage(
-      `${data?.length || sessionsToInsert.length} training event${
-        sessionsToInsert.length === 1 ? "" : "s"
+      `${
+        data?.length ||
+        sessionsToInsert.length
+      } training event${
+        sessionsToInsert.length ===
+        1
+          ? ""
+          : "s"
       } scheduled successfully.`
     );
 
-    setForm(initialForm);
+    /*
+      Reset the form, but preserve the
+      assigned site for HSE / Plant Incharge.
+    */
+    setForm({
+      ...initialForm,
+      site_id:
+        isAssignedSiteUser &&
+        user?.site_id
+          ? String(user.site_id)
+          : "",
+    });
 
     window.setTimeout(() => {
       navigate("/training");
@@ -310,21 +536,31 @@ function AddTrainingSchedule() {
   return (
     <div className="training-form-page">
       <div className="training-form-container">
+
         <header className="training-form-header">
           <button
             type="button"
             className="training-form-back"
-            onClick={() => navigate("/training")}
+            onClick={() =>
+              navigate("/training")
+            }
           >
             ← Training
           </button>
 
           <div>
-            <span>Training Planning</span>
-            <h1>Add Training Schedule</h1>
+            <span>
+              Training Planning
+            </span>
+
+            <h1>
+              Add Training Schedule
+            </h1>
+
             <p>
-              Create a one-time or recurring training schedule for a
-              specific site.
+              Create a one-time or recurring
+              training schedule for a specific
+              site.
             </p>
           </div>
         </header>
@@ -344,24 +580,37 @@ function AddTrainingSchedule() {
             className="training-schedule-form"
             onSubmit={handleSubmit}
           >
+
             <section className="training-form-card">
+
               <div className="training-form-card-heading">
-                <div className="training-form-card-icon">🎓</div>
+                <div className="training-form-card-icon">
+                  🎓
+                </div>
 
                 <div>
-                  <h2>Training Details</h2>
+                  <h2>
+                    Training Details
+                  </h2>
+
                   <p>
-                    Select the training activity and responsible site.
+                    Select the training activity
+                    and responsible site.
                   </p>
                 </div>
               </div>
 
               <div className="training-form-grid">
+
                 <label className="training-form-field">
-                  <span>Training Type *</span>
+                  <span>
+                    Training Type *
+                  </span>
 
                   <select
-                    value={form.training_type_id}
+                    value={
+                      form.training_type_id
+                    }
                     onChange={(event) =>
                       handleTrainingTypeChange(
                         event.target.value
@@ -372,19 +621,28 @@ function AddTrainingSchedule() {
                       Select training type
                     </option>
 
-                    {trainingTypes.map((type) => (
-                      <option value={type.id} key={type.id}>
-                        {type.name}
-                      </option>
-                    ))}
+                    {trainingTypes.map(
+                      (type) => (
+                        <option
+                          value={type.id}
+                          key={type.id}
+                        >
+                          {type.name}
+                        </option>
+                      )
+                    )}
                   </select>
                 </label>
 
                 <label className="training-form-field">
-                  <span>Category *</span>
+                  <span>
+                    Category *
+                  </span>
 
                   <select
-                    value={form.session_category}
+                    value={
+                      form.session_category
+                    }
                     onChange={(event) =>
                       updateField(
                         "session_category",
@@ -403,44 +661,75 @@ function AddTrainingSchedule() {
                 </label>
 
                 <label className="training-form-field">
-                  <span>Site *</span>
+                  <span>
+                    Site *
+                  </span>
 
-                  <select
-                    value={form.site_id}
-                    onChange={(event) => {
-                      updateField("site_id", event.target.value);
-                      updateField("responsible_user_id", "");
-                    }}
-                  >
-                    <option value="">Select site</option>
-
-                    {sites.map((site) => (
-                      <option value={site.id} key={site.id}>
-                        {site.name}
+                  {isAdmin ? (
+                    <select
+                      value={form.site_id}
+                      onChange={(event) =>
+                        handleSiteChange(
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">
+                        Select site
                       </option>
-                    ))}
-                  </select>
+
+                      {sites.map(
+                        (site) => (
+                          <option
+                            value={site.id}
+                            key={site.id}
+                          >
+                            {site.name}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={
+                        selectedSiteName ||
+                        "Assigned site not available"
+                      }
+                      readOnly
+                      disabled
+                    />
+                  )}
                 </label>
 
                 <label className="training-form-field">
-                  <span>Training Title *</span>
+                  <span>
+                    Training Title *
+                  </span>
 
                   <input
                     type="text"
                     value={form.title}
                     onChange={(event) =>
-                      updateField("title", event.target.value)
+                      updateField(
+                        "title",
+                        event.target.value
+                      )
                     }
                     placeholder="Example: Fire Fighting Refresher"
                   />
                 </label>
 
                 <label className="training-form-field">
-                  <span>Trainer</span>
+                  <span>
+                    Trainer
+                  </span>
 
                   <input
                     type="text"
-                    value={form.trainer_name}
+                    value={
+                      form.trainer_name
+                    }
                     onChange={(event) =>
                       updateField(
                         "trainer_name",
@@ -452,40 +741,57 @@ function AddTrainingSchedule() {
                 </label>
 
                 <label className="training-form-field">
-                  <span>Venue</span>
+                  <span>
+                    Venue
+                  </span>
 
                   <input
                     type="text"
                     value={form.venue}
                     onChange={(event) =>
-                      updateField("venue", event.target.value)
+                      updateField(
+                        "venue",
+                        event.target.value
+                      )
                     }
                     placeholder="Training room or location"
                   />
                 </label>
+
               </div>
             </section>
 
             <section className="training-form-card">
+
               <div className="training-form-card-heading">
-                <div className="training-form-card-icon">📅</div>
+                <div className="training-form-card-icon">
+                  📅
+                </div>
 
                 <div>
-                  <h2>Schedule and Frequency</h2>
+                  <h2>
+                    Schedule and Frequency
+                  </h2>
+
                   <p>
-                    Choose when the training starts and how often it
-                    repeats.
+                    Choose when the training starts
+                    and how often it repeats.
                   </p>
                 </div>
               </div>
 
               <div className="training-form-grid">
+
                 <label className="training-form-field">
-                  <span>First Training Date *</span>
+                  <span>
+                    First Training Date *
+                  </span>
 
                   <input
                     type="date"
-                    value={form.session_date}
+                    value={
+                      form.session_date
+                    }
                     onChange={(event) =>
                       updateField(
                         "session_date",
@@ -496,7 +802,9 @@ function AddTrainingSchedule() {
                 </label>
 
                 <label className="training-form-field">
-                  <span>Frequency *</span>
+                  <span>
+                    Frequency *
+                  </span>
 
                   <select
                     value={form.frequency}
@@ -507,21 +815,40 @@ function AddTrainingSchedule() {
                       )
                     }
                   >
-                    <option value="One Time">One Time</option>
-                    <option value="Daily">Daily</option>
-                    <option value="Weekly">Weekly</option>
-                    <option value="Monthly">Monthly</option>
+                    <option value="One Time">
+                      One Time
+                    </option>
+
+                    <option value="Daily">
+                      Daily
+                    </option>
+
+                    <option value="Weekly">
+                      Weekly
+                    </option>
+
+                    <option value="Monthly">
+                      Monthly
+                    </option>
                   </select>
                 </label>
 
-                {form.frequency !== "One Time" && (
+                {form.frequency !==
+                  "One Time" && (
                   <label className="training-form-field">
-                    <span>Repeat Until *</span>
+                    <span>
+                      Repeat Until *
+                    </span>
 
                     <input
                       type="date"
-                      min={form.session_date || undefined}
-                      value={form.repeat_until}
+                      min={
+                        form.session_date ||
+                        undefined
+                      }
+                      value={
+                        form.repeat_until
+                      }
                       onChange={(event) =>
                         updateField(
                           "repeat_until",
@@ -533,11 +860,15 @@ function AddTrainingSchedule() {
                 )}
 
                 <label className="training-form-field">
-                  <span>Start Time</span>
+                  <span>
+                    Start Time
+                  </span>
 
                   <input
                     type="time"
-                    value={form.start_time}
+                    value={
+                      form.start_time
+                    }
                     onChange={(event) =>
                       updateField(
                         "start_time",
@@ -548,11 +879,15 @@ function AddTrainingSchedule() {
                 </label>
 
                 <label className="training-form-field">
-                  <span>End Time</span>
+                  <span>
+                    End Time
+                  </span>
 
                   <input
                     type="time"
-                    value={form.end_time}
+                    value={
+                      form.end_time
+                    }
                     onChange={(event) =>
                       updateField(
                         "end_time",
@@ -563,10 +898,14 @@ function AddTrainingSchedule() {
                 </label>
 
                 <label className="training-form-field">
-                  <span>Responsible Person</span>
+                  <span>
+                    Responsible Person
+                  </span>
 
                   <select
-                    value={form.responsible_user_id}
+                    value={
+                      form.responsible_user_id
+                    }
                     onChange={(event) =>
                       updateField(
                         "responsible_user_id",
@@ -578,28 +917,39 @@ function AddTrainingSchedule() {
                       Select responsible person
                     </option>
 
-                    {responsibleEmployees.map((employee) => (
-                      <option
-                        value={employee.id}
-                        key={employee.id}
-                      >
-                        {getEmployeeName(employee)}
-                      </option>
-                    ))}
+                    {responsibleEmployees.map(
+                      (employee) => (
+                        <option
+                          value={employee.id}
+                          key={employee.id}
+                        >
+                          {getEmployeeName(
+                            employee
+                          )}
+                        </option>
+                      )
+                    )}
                   </select>
                 </label>
+
               </div>
             </section>
 
             <section className="training-form-card">
+
               <div className="training-form-card-heading">
-                <div className="training-form-card-icon">🔔</div>
+                <div className="training-form-card-icon">
+                  🔔
+                </div>
 
                 <div>
-                  <h2>Reminder Settings</h2>
+                  <h2>
+                    Reminder Settings
+                  </h2>
+
                   <p>
-                    Select when the responsible person should be
-                    reminded.
+                    Select when the responsible
+                    person should be reminded.
                   </p>
                 </div>
               </div>
@@ -610,43 +960,60 @@ function AddTrainingSchedule() {
                   ["3", "3 days before"],
                   ["1", "1 day before"],
                   ["0", "On the due date"],
-                ].map(([value, label]) => (
-                  <label
-                    className="training-reminder-option"
-                    key={value}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.reminder_days.includes(value)}
-                      onChange={() =>
-                        handleReminderChange(value)
-                      }
-                    />
+                ].map(
+                  ([value, label]) => (
+                    <label
+                      className="training-reminder-option"
+                      key={value}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.reminder_days.includes(
+                          value
+                        )}
+                        onChange={() =>
+                          handleReminderChange(
+                            value
+                          )
+                        }
+                      />
 
-                    <span>{label}</span>
-                  </label>
-                ))}
+                      <span>
+                        {label}
+                      </span>
+                    </label>
+                  )
+                )}
               </div>
 
               <label className="training-form-field full-width">
-                <span>Remarks</span>
+                <span>
+                  Remarks
+                </span>
 
                 <textarea
                   rows="4"
                   value={form.remarks}
                   onChange={(event) =>
-                    updateField("remarks", event.target.value)
+                    updateField(
+                      "remarks",
+                      event.target.value
+                    )
                   }
                   placeholder="Additional instructions or information"
                 />
               </label>
+
             </section>
 
             <div className="training-form-actions">
+
               <button
                 type="button"
                 className="training-form-cancel"
-                onClick={() => navigate("/training")}
+                onClick={() =>
+                  navigate("/training")
+                }
                 disabled={saving}
               >
                 Cancel
@@ -661,7 +1028,9 @@ function AddTrainingSchedule() {
                   ? "Creating Schedule..."
                   : "Create Training Schedule"}
               </button>
+
             </div>
+
           </form>
         )}
       </div>

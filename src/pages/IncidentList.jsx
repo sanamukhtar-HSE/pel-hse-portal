@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { useUser } from "../context/UserContext";
 import "../styles/IncidentList.css";
 
 function IncidentList() {
   const navigate = useNavigate();
+  const { user, loading: userLoading } = useUser();
 
   const [incidents, setIncidents] = useState([]);
   const [sites, setSites] = useState([]);
@@ -16,8 +18,17 @@ function IncidentList() {
   const [siteFilter, setSiteFilter] = useState("");
 
   useEffect(() => {
+    if (userLoading) {
+      return;
+    }
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     loadPage();
-  }, []);
+  }, [user, userLoading]);
 
   async function loadPage() {
     setLoading(true);
@@ -30,12 +41,7 @@ function IncidentList() {
   async function fetchIncidents() {
     const { data, error } = await supabase
       .from("incidents")
-      .select(`
-        *,
-        sites (
-          name
-        )
-      `)
+      .select("*, sites(name)")
       .order("id", { ascending: false });
 
     if (error) {
@@ -68,7 +74,7 @@ function IncidentList() {
   }
 
   function getStatusClass(status) {
-    if (status === "Pending Approval") {
+    if (status === "Pending") {
       return "register-status-pending";
     }
 
@@ -88,7 +94,10 @@ function IncidentList() {
       return "register-status-verification";
     }
 
-    if (status === "Rejected") {
+    if (
+      status === "Disapproved" ||
+      status === "Rejected"
+    ) {
       return "register-status-rejected";
     }
 
@@ -126,7 +135,7 @@ function IncidentList() {
 
     const matchesStatus =
       statusFilter === "" ||
-      incident.report_status === statusFilter;
+      incident.approval_status === statusFilter;
 
     const matchesSeverity =
       severityFilter === "" ||
@@ -151,19 +160,33 @@ function IncidentList() {
     siteFilter,
   ].filter(Boolean).length;
 
+  if (userLoading) {
+    return null;
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const isEmployee = user.user_type === "Employee";
+
   return (
     <div className="register-page">
       <div className="register-container">
+
         <header className="register-header">
           <div>
             <h1>Incident Register</h1>
 
             <p>
-              Review, filter and manage all reported incidents.
+              {isEmployee
+                ? "View your submitted incident reports."
+                : "Review, filter and manage reported incidents."}
             </p>
           </div>
 
           <div className="register-header-actions">
+
             <button
               className="register-back-button"
               onClick={() => navigate("/")}
@@ -177,15 +200,22 @@ function IncidentList() {
             >
               ＋ Report Incident
             </button>
+
           </div>
         </header>
 
         <section className="register-summary-grid">
+
           <div className="register-summary-card">
             <div className="register-summary-icon">📋</div>
 
             <div>
-              <span>Total Incidents</span>
+              <span>
+                {isEmployee
+                  ? "Your Incidents"
+                  : "Total Incidents"}
+              </span>
+
               <strong>{incidents.length}</strong>
             </div>
           </div>
@@ -195,7 +225,10 @@ function IncidentList() {
 
             <div>
               <span>Showing Results</span>
-              <strong>{filteredIncidents.length}</strong>
+
+              <strong>
+                {filteredIncidents.length}
+              </strong>
             </div>
           </div>
 
@@ -204,12 +237,12 @@ function IncidentList() {
 
             <div>
               <span>Pending Approval</span>
+
               <strong>
                 {
                   incidents.filter(
                     (incident) =>
-                      incident.report_status ===
-                      "Pending Approval"
+                      incident.approval_status === "Pending"
                   ).length
                 }
               </strong>
@@ -221,6 +254,7 @@ function IncidentList() {
 
             <div>
               <span>Closed Cases</span>
+
               <strong>
                 {
                   incidents.filter(
@@ -231,10 +265,13 @@ function IncidentList() {
               </strong>
             </div>
           </div>
+
         </section>
 
         <section className="register-filter-card">
+
           <div className="register-filter-heading">
+
             <div>
               <h2>Filter Incidents</h2>
 
@@ -252,9 +289,11 @@ function IncidentList() {
                 Clear Filters ({activeFilterCount})
               </button>
             )}
+
           </div>
 
           <div className="register-filters">
+
             <div className="register-filter-group">
               <label>Incident Type</label>
 
@@ -290,10 +329,12 @@ function IncidentList() {
                 }
               >
                 <option value="">All Statuses</option>
-                <option value="Pending Approval">
-                  Pending Approval
+                <option value="Pending">
+                  Pending
                 </option>
-                <option value="Approved">Approved</option>
+                <option value="Approved">
+                  Approved
+                </option>
                 <option value="Under Investigation">
                   Under Investigation
                 </option>
@@ -303,8 +344,12 @@ function IncidentList() {
                 <option value="Awaiting Verification">
                   Awaiting Verification
                 </option>
-                <option value="Rejected">Rejected</option>
-                <option value="Closed">Closed</option>
+                <option value="Disapproved">
+                  Disapproved
+                </option>
+                <option value="Closed">
+                  Closed
+                </option>
               </select>
             </div>
 
@@ -348,13 +393,20 @@ function IncidentList() {
                 ))}
               </select>
             </div>
+
           </div>
         </section>
 
         <section className="register-table-card">
+
           <div className="register-table-heading">
+
             <div>
-              <h2>Reported Incidents</h2>
+              <h2>
+                {isEmployee
+                  ? "Your Reported Incidents"
+                  : "Reported Incidents"}
+              </h2>
 
               <p>
                 {filteredIncidents.length}{" "}
@@ -364,16 +416,23 @@ function IncidentList() {
                 displayed
               </p>
             </div>
+
           </div>
 
           <div className="register-table-wrapper">
+
             {loading ? (
+
               <div className="register-empty-state">
                 <div className="register-empty-icon">⏳</div>
+
                 <h3>Loading incidents...</h3>
               </div>
+
             ) : filteredIncidents.length === 0 ? (
+
               <div className="register-empty-state">
+
                 <div className="register-empty-icon">📋</div>
 
                 <h3>No incidents found</h3>
@@ -390,9 +449,13 @@ function IncidentList() {
                     Clear Filters
                   </button>
                 )}
+
               </div>
+
             ) : (
+
               <table className="register-table">
+
                 <thead>
                   <tr>
                     <th>Incident No.</th>
@@ -407,17 +470,20 @@ function IncidentList() {
                 </thead>
 
                 <tbody>
+
                   {filteredIncidents.map((incident) => (
+
                     <tr
                       key={incident.id}
                       onClick={() =>
-                        navigate(`/incident/${incident.id}`)
+                        navigate("/incident/" + incident.id)
                       }
                     >
+
                       <td>
                         <strong className="register-incident-number">
                           {incident.incident_no ||
-                            `#${incident.id}`}
+                            "#" + incident.id}
                         </strong>
                       </td>
 
@@ -438,9 +504,12 @@ function IncidentList() {
 
                       <td>
                         <span
-                          className={`register-severity-badge ${getSeverityClass(
-                            incident.severity
-                          )}`}
+                          className={
+                            "register-severity-badge " +
+                            getSeverityClass(
+                              incident.severity
+                            )
+                          }
                         >
                           {incident.severity || "N/A"}
                         </span>
@@ -448,11 +517,14 @@ function IncidentList() {
 
                       <td>
                         <span
-                          className={`register-status-badge ${getStatusClass(
-                            incident.report_status
-                          )}`}
+                          className={
+                            "register-status-badge " +
+                            getStatusClass(
+                              incident.approval_status
+                            )
+                          }
                         >
-                          {incident.report_status || "N/A"}
+                          {incident.approval_status || "N/A"}
                         </span>
                       </td>
 
@@ -467,20 +539,28 @@ function IncidentList() {
                             event.stopPropagation();
 
                             navigate(
-                              `/incident/${incident.id}`
+                              "/incident/" + incident.id
                             );
                           }}
                         >
                           View →
                         </button>
                       </td>
+
                     </tr>
+
                   ))}
+
                 </tbody>
+
               </table>
+
             )}
+
           </div>
+
         </section>
+
       </div>
     </div>
   );

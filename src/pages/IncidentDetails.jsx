@@ -19,24 +19,19 @@ function IncidentDetails() {
 
   const canApprove =
     user?.user_type === "Admin" ||
-    user?.user_type === "Supervisor";
+    user?.user_type === "HSE";
 
   const canInvestigate =
     user?.user_type === "Admin" ||
     user?.user_type === "HSE";
 
-  const investigationAllowedStatuses = [
-    "Approved",
-    "Under Investigation",
-    "Corrective Actions Open",
-    "Awaiting Verification",
-    "Closed",
-  ];
+  const canEdit =
+    user?.user_type === "Employee" &&
+    incident?.created_by === user?.auth_user_id &&
+    incident?.approval_status === "Pending";
 
   const canOpenInvestigation =
-    investigationAllowedStatuses.includes(
-      incident?.report_status
-    );
+    incident?.approval_status === "Approved";
 
   useEffect(() => {
     loadIncident();
@@ -72,10 +67,7 @@ function IncidentDetails() {
         .maybeSingle();
 
     if (reporterError) {
-      console.error(
-        "Reporter lookup failed:",
-        reporterError
-      );
+      console.error("Reporter lookup failed:", reporterError);
     } else {
       setReporter(reporterData);
     }
@@ -93,10 +85,7 @@ function IncidentDetails() {
         .eq("incident_id", data.id);
 
     if (peopleError) {
-      console.error(
-        "People loading failed:",
-        peopleError
-      );
+      console.error("People loading failed:", peopleError);
     } else {
       setPeople(peopleData || []);
     }
@@ -119,12 +108,14 @@ function IncidentDetails() {
       setInvestigation(investigationData);
 
       if (investigationData?.id) {
-        const { data: correctiveActionData, error: correctiveActionError } =
-          await supabase
-            .from("incident_corrective_actions")
-            .select("*")
-            .eq("investigation_id", investigationData.id)
-            .order("target_date", { ascending: true });
+        const {
+          data: correctiveActionData,
+          error: correctiveActionError,
+        } = await supabase
+          .from("incident_corrective_actions")
+          .select("*")
+          .eq("investigation_id", investigationData.id)
+          .order("target_date", { ascending: true });
 
         if (correctiveActionError) {
           console.error(
@@ -144,7 +135,10 @@ function IncidentDetails() {
   }
 
   function getStatusClass(status) {
-    if (status === "Pending Approval") {
+    if (
+      status === "Pending" ||
+      status === "Pending Approval"
+    ) {
       return "pending";
     }
 
@@ -152,7 +146,10 @@ function IncidentDetails() {
       return "approved";
     }
 
-    if (status === "Rejected") {
+    if (
+      status === "Disapproved" ||
+      status === "Rejected"
+    ) {
       return "rejected";
     }
 
@@ -166,15 +163,17 @@ function IncidentDetails() {
     return "closed";
   }
 
-
   function formatDate(dateValue) {
     if (!dateValue) return "Not recorded";
 
-    return new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    return new Date(`${dateValue}T00:00:00`).toLocaleDateString(
+      "en-GB",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
   }
 
   function isActionOverdue(action) {
@@ -189,7 +188,9 @@ function IncidentDetails() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const targetDate = new Date(`${action.target_date}T00:00:00`);
+    const targetDate = new Date(
+      `${action.target_date}T00:00:00`
+    );
 
     return targetDate < today;
   }
@@ -207,10 +208,7 @@ function IncidentDetails() {
       return "🔍 Start Investigation";
     }
 
-    if (
-      investigation.status === "Completed" ||
-      incident?.report_status === "Closed"
-    ) {
+    if (investigation.status === "Completed") {
       return "📋 View Investigation";
     }
 
@@ -238,7 +236,9 @@ function IncidentDetails() {
 
   return (
     <div className="incident-details-page">
+
       <div className="header">
+
         <button
           className="back-button"
           onClick={() => navigate("/incidents")}
@@ -254,9 +254,20 @@ function IncidentDetails() {
         <p>Incident Details</p>
 
         <div className="header-actions">
+
+          {canEdit && (
+            <button
+              className="print-button"
+              onClick={() =>
+                navigate(`/incident/${incident.id}/edit`)
+              }
+            >
+              ✏️ Edit Incident
+            </button>
+          )}
+
           {canApprove &&
-            incident.report_status ===
-              "Pending Approval" && (
+            incident.approval_status === "Pending" && (
               <button
                 className="print-button"
                 onClick={() =>
@@ -265,7 +276,7 @@ function IncidentDetails() {
                   )
                 }
               >
-                ✅ Supervisor Approval
+                ✅ HSE Approval
               </button>
             )}
 
@@ -288,13 +299,16 @@ function IncidentDetails() {
           >
             🖨 Print Report
           </button>
+
         </div>
       </div>
 
       <div className="card">
+
         <h2>👤 Reporter Information</h2>
 
         <div className="details-grid">
+
           <div className="info-box">
             <strong>Employee Name</strong>
             {incident.reporter_name || "N/A"}
@@ -317,28 +331,30 @@ function IncidentDetails() {
 
           <div className="info-box">
             <strong>Site</strong>
-            {incident.sites?.name ||
-              "Site not assigned"}
+            {incident.sites?.name || "Site not assigned"}
           </div>
 
           <div className="info-box">
-            <strong>Report Status</strong>
+            <strong>Approval Status</strong>
 
             <span
               className={`status-badge ${getStatusClass(
-                incident.report_status
+                incident.approval_status
               )}`}
             >
-              {incident.report_status || "N/A"}
+              {incident.approval_status || "N/A"}
             </span>
           </div>
+
         </div>
       </div>
 
       <div className="card">
+
         <h2>📋 Incident Information</h2>
 
         <div className="details-grid">
+
           <div className="info-box">
             <strong>Date</strong>
             {incident.incident_date || "N/A"}
@@ -367,14 +383,14 @@ function IncidentDetails() {
           </div>
 
           <div className="info-box">
-            <strong>Status</strong>
+            <strong>Approval Status</strong>
 
             <span
               className={`status-badge ${getStatusClass(
-                incident.report_status
+                incident.approval_status
               )}`}
             >
-              {incident.report_status || "N/A"}
+              {incident.approval_status || "N/A"}
             </span>
           </div>
 
@@ -407,6 +423,7 @@ function IncidentDetails() {
             <strong>Permit Number</strong>
             {incident.permit_number || "N/A"}
           </div>
+
         </div>
 
         <h2 style={{ marginTop: "30px" }}>
@@ -414,8 +431,7 @@ function IncidentDetails() {
         </h2>
 
         <div className="info-box">
-          {incident.description ||
-            "No description provided."}
+          {incident.description || "No description provided."}
         </div>
 
         <h2 style={{ marginTop: "30px" }}>
@@ -423,8 +439,7 @@ function IncidentDetails() {
         </h2>
 
         <div className="info-box">
-          {incident.remarks ||
-            "No additional remarks."}
+          {incident.remarks || "No additional remarks."}
         </div>
 
         <hr />
@@ -449,9 +464,7 @@ function IncidentDetails() {
                 <tr key={person.id}>
                   <td>{person.name || "N/A"}</td>
                   <td>{person.company || "N/A"}</td>
-                  <td>
-                    {person.designation || "N/A"}
-                  </td>
+                  <td>{person.designation || "N/A"}</td>
                   <td>{person.role || "N/A"}</td>
                 </tr>
               ))}
@@ -484,20 +497,23 @@ function IncidentDetails() {
         ) : (
           <p>No photo uploaded.</p>
         )}
+
       </div>
 
       <div className="card">
+
         <h2>🔍 Incident Investigation</h2>
 
         {!canOpenInvestigation ? (
           <div className="info-box">
             <strong>Investigation Status</strong>
-            Investigation can begin after supervisor
-            approval.
+
+            Investigation can begin after HSE approval.
           </div>
         ) : (
           <>
             <div className="details-grid">
+
               <div className="info-box">
                 <strong>Investigation Status</strong>
                 {investigation?.status || "Not Started"}
@@ -520,6 +536,7 @@ function IncidentDetails() {
                 {investigation?.completed_date ||
                   "Not completed"}
               </div>
+
             </div>
 
             {canInvestigate && (
@@ -549,44 +566,65 @@ function IncidentDetails() {
                 📋 View Investigation
               </button>
             )}
+
           </>
         )}
-      </div>
 
+      </div>
 
       {investigation && (
         <div className="card corrective-actions-summary-card">
+
           <div className="corrective-actions-summary-header">
+
             <div>
+
               <h2>✅ Corrective Action Progress</h2>
+
               <p>
                 Actions assigned from the investigation findings.
               </p>
+
             </div>
 
             <div className="corrective-actions-count">
+
               {correctiveActions.length}
+
               <span>
-                {correctiveActions.length === 1 ? "Action" : "Actions"}
+                {correctiveActions.length === 1
+                  ? "Action"
+                  : "Actions"}
               </span>
+
             </div>
+
           </div>
 
           {correctiveActions.length === 0 ? (
+
             <div className="corrective-actions-empty-state">
               No corrective actions have been recorded for this
               investigation.
             </div>
+
           ) : (
+
             <div className="corrective-actions-list">
+
               {correctiveActions.map((action, index) => (
+
                 <div
                   className={`corrective-action-summary ${
-                    isActionOverdue(action) ? "is-overdue" : ""
+                    isActionOverdue(action)
+                      ? "is-overdue"
+                      : ""
                   }`}
                   key={action.id}
                 >
+
                   <div className="corrective-action-summary-top">
+
                     <div className="corrective-action-number">
                       Action {index + 1}
                     </div>
@@ -600,43 +638,62 @@ function IncidentDetails() {
                         ? "Overdue"
                         : action.status || "Open"}
                     </span>
+
                   </div>
 
-                  <h3>{action.action || "Action not described"}</h3>
+                  <h3>
+                    {action.action || "Action not described"}
+                  </h3>
 
                   <div className="corrective-action-meta">
+
                     <div>
                       <span>Responsible Person</span>
+
                       <strong>
-                        {action.responsible_person || "Not assigned"}
+                        {action.responsible_person ||
+                          "Not assigned"}
                       </strong>
                     </div>
 
                     <div>
                       <span>Target Date</span>
-                      <strong>{formatDate(action.target_date)}</strong>
+
+                      <strong>
+                        {formatDate(action.target_date)}
+                      </strong>
                     </div>
 
                     <div>
                       <span>Completion Date</span>
+
                       <strong>
                         {action.completion_date
                           ? formatDate(action.completion_date)
                           : "Not completed"}
                       </strong>
                     </div>
+
                   </div>
 
                   {action.remarks && (
                     <div className="corrective-action-remarks">
+
                       <strong>Remarks</strong>
+
                       <p>{action.remarks}</p>
+
                     </div>
                   )}
+
                 </div>
+
               ))}
+
             </div>
+
           )}
+
         </div>
       )}
 

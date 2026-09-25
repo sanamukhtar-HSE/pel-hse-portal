@@ -35,12 +35,14 @@ function Dashboard() {
     setRecentIncidents(incidents);
     setTotalIncidents(incidents.length);
 
+    // Approval status is now the workflow status.
     setPendingIncidents(
       incidents.filter(
-        (incident) => incident.report_status === "Pending Approval"
+        (incident) => incident.approval_status === "Pending"
       ).length
     );
 
+    // Closed remains a case/report status.
     setClosedIncidents(
       incidents.filter(
         (incident) => incident.report_status === "Closed"
@@ -61,7 +63,7 @@ function Dashboard() {
   }
 
   function getStatusClass(status) {
-    if (status === "Pending Approval") {
+    if (status === "Pending") {
       return "dashboard-status-pending";
     }
 
@@ -78,7 +80,10 @@ function Dashboard() {
       return "dashboard-status-closed";
     }
 
-    if (status === "Rejected") {
+    if (
+      status === "Disapproved" ||
+      status === "Rejected"
+    ) {
       return "dashboard-status-rejected";
     }
 
@@ -93,6 +98,7 @@ function Dashboard() {
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
+
         <header
           className="dashboard-header"
           style={{
@@ -106,6 +112,7 @@ function Dashboard() {
           }}
         >
           <div className="dashboard-header-content">
+
             <div className="dashboard-brand">
               <img
                 src={pelLogo}
@@ -115,15 +122,24 @@ function Dashboard() {
 
               <div>
                 <h1>PEL HSE Portal</h1>
-                <p>Health, Safety & Environment Management System</p>
+                <p>
+                  Health, Safety & Environment Management System
+                </p>
               </div>
             </div>
 
             <div className="dashboard-user-area">
+
               <div className="dashboard-user-details">
                 <span>Logged in as</span>
-                <strong>{user?.full_name || user?.email || "User"}</strong>
-                <small>{user?.user_type || "Employee"}</small>
+
+                <strong>
+                  {user?.full_name || user?.email || "User"}
+                </strong>
+
+                <small>
+                  {user?.user_type || "Employee"}
+                </small>
               </div>
 
               <button
@@ -132,13 +148,16 @@ function Dashboard() {
               >
                 Logout
               </button>
+
             </div>
           </div>
         </header>
 
         <nav className="dashboard-navigation">
+
           <button onClick={() => navigate("/incident")}>
             <span className="dashboard-nav-icon">＋</span>
+
             <span>
               <strong>Report Incident</strong>
               <small>Submit a new report</small>
@@ -147,6 +166,7 @@ function Dashboard() {
 
           <button onClick={() => navigate("/incidents")}>
             <span className="dashboard-nav-icon">📋</span>
+
             <span>
               <strong>Incident Register</strong>
               <small>View reported incidents</small>
@@ -156,6 +176,7 @@ function Dashboard() {
           {canViewManagementModules && (
             <button onClick={() => navigate("/actions")}>
               <span className="dashboard-nav-icon">✅</span>
+
               <span>
                 <strong>Corrective Actions</strong>
                 <small>Track actions and deadlines</small>
@@ -165,6 +186,7 @@ function Dashboard() {
 
           <button>
             <span className="dashboard-nav-icon">🔍</span>
+
             <span>
               <strong>Inspections</strong>
               <small>Coming soon</small>
@@ -172,17 +194,19 @@ function Dashboard() {
           </button>
 
           <button onClick={() => navigate("/training")}>
-  <span className="dashboard-nav-icon">🎓</span>
+            <span className="dashboard-nav-icon">🎓</span>
 
-  <span>
-    <strong>Training</strong>
-    <small>Training records and calendar</small>
-  </span>
-</button>
+            <span>
+              <strong>Training</strong>
+              <small>Training records and calendar</small>
+            </span>
+          </button>
 
-          {(user?.user_type === "Admin" || user?.user_type === "HSE") && (
+          {(user?.user_type === "Admin" ||
+            user?.user_type === "HSE") && (
             <button>
               <span className="dashboard-nav-icon">👥</span>
+
               <span>
                 <strong>Employees</strong>
                 <small>Manage portal users</small>
@@ -193,15 +217,18 @@ function Dashboard() {
           {canViewManagementModules && (
             <button onClick={() => navigate("/reports")}>
               <span className="dashboard-nav-icon">📊</span>
+
               <span>
                 <strong>Reports</strong>
                 <small>Analytics and trends</small>
               </span>
             </button>
           )}
+
         </nav>
 
         <section className="dashboard-section">
+
           <div className="dashboard-section-heading">
             <div>
               <h2>Incident Overview</h2>
@@ -210,8 +237,10 @@ function Dashboard() {
           </div>
 
           <div className="dashboard-kpi-grid">
+
             <div className="dashboard-kpi-card">
               <div className="dashboard-kpi-icon">📋</div>
+
               <div>
                 <span>Total Incidents</span>
                 <strong>{totalIncidents}</strong>
@@ -220,6 +249,7 @@ function Dashboard() {
 
             <div className="dashboard-kpi-card pending">
               <div className="dashboard-kpi-icon">⏳</div>
+
               <div>
                 <span>Pending Approval</span>
                 <strong>{pendingIncidents}</strong>
@@ -228,6 +258,7 @@ function Dashboard() {
 
             <div className="dashboard-kpi-card closed">
               <div className="dashboard-kpi-icon">✓</div>
+
               <div>
                 <span>Closed Incidents</span>
                 <strong>{closedIncidents}</strong>
@@ -236,19 +267,34 @@ function Dashboard() {
 
             <div className="dashboard-kpi-card open">
               <div className="dashboard-kpi-icon">⚙</div>
+
               <div>
                 <span>Open Cases</span>
-                <strong>{Math.max(totalIncidents - closedIncidents, 0)}</strong>
+
+                <strong>
+                  {Math.max(
+                    totalIncidents - closedIncidents,
+                    0
+                  )}
+                </strong>
               </div>
             </div>
+
           </div>
         </section>
 
         <section className="dashboard-section">
+
           <div className="dashboard-section-heading">
+
             <div>
               <h2>Recent Incidents</h2>
-              <p>Latest reports submitted to the portal</p>
+
+              <p>
+                {user?.user_type === "Employee"
+                  ? "Your submitted incident reports"
+                  : "Latest reports submitted to the portal"}
+              </p>
             </div>
 
             <button
@@ -257,60 +303,90 @@ function Dashboard() {
             >
               View All
             </button>
+
           </div>
 
           <div className="dashboard-recent-list">
+
             {recentIncidents.length === 0 ? (
+
               <div className="dashboard-empty-state">
                 <span>📋</span>
+
                 <h3>No incidents reported</h3>
-                <p>New incident reports will appear here.</p>
+
+                <p>
+                  New incident reports will appear here.
+                </p>
               </div>
+
             ) : (
-              recentIncidents.slice(0, 5).map((incident) => (
-                <button
-                  type="button"
-                  className="dashboard-incident-row"
-                  key={incident.id}
-                  onClick={() => navigate(`/incident/${incident.id}`)}
-                >
-                  <div className="dashboard-incident-number">
-                    <span>Incident</span>
-                    <strong>
-                      {incident.incident_no || `#${incident.id}`}
-                    </strong>
-                  </div>
 
-                  <div className="dashboard-incident-main">
-                    <strong>
-                      {incident.incident_type || "Incident Report"}
-                    </strong>
-                    <span>
-                      {incident.exact_location || "Location not recorded"}
-                    </span>
-                  </div>
+              recentIncidents
+                .slice(0, 5)
+                .map((incident) => (
 
-                  <div className="dashboard-incident-date">
-                    <span>Date</span>
-                    <strong>{incident.incident_date || "N/A"}</strong>
-                  </div>
+                  <button
+                    type="button"
+                    className="dashboard-incident-row"
+                    key={incident.id}
+                    onClick={() =>
+                      navigate(`/incident/${incident.id}`)
+                    }
+                  >
 
-                  <div>
-                    <span
-                      className={`dashboard-status-badge ${getStatusClass(
-                        incident.report_status
-                      )}`}
-                    >
-                      {incident.report_status || "N/A"}
-                    </span>
-                  </div>
+                    <div className="dashboard-incident-number">
+                      <span>Incident</span>
 
-                  <div className="dashboard-row-arrow">→</div>
-                </button>
-              ))
+                      <strong>
+                        {incident.incident_no ||
+                          `#${incident.id}`}
+                      </strong>
+                    </div>
+
+                    <div className="dashboard-incident-main">
+                      <strong>
+                        {incident.incident_type ||
+                          "Incident Report"}
+                      </strong>
+
+                      <span>
+                        {incident.exact_location ||
+                          "Location not recorded"}
+                      </span>
+                    </div>
+
+                    <div className="dashboard-incident-date">
+                      <span>Date</span>
+
+                      <strong>
+                        {incident.incident_date || "N/A"}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span
+                        className={`dashboard-status-badge ${getStatusClass(
+                          incident.approval_status
+                        )}`}
+                      >
+                        {incident.approval_status || "N/A"}
+                      </span>
+                    </div>
+
+                    <div className="dashboard-row-arrow">
+                      →
+                    </div>
+
+                  </button>
+
+                ))
+
             )}
+
           </div>
         </section>
+
       </div>
     </div>
   );

@@ -37,10 +37,10 @@ export function UserProvider({ children }) {
 
     // Step 1: Load the logged-in employee
     const { data: employee, error: employeeError } = await supabase
-      .from("employees")
-      .select("*")
-      .eq("email", session.user.email)
-      .single();
+  .from("employees")
+  .select("*")
+  .eq("auth_user_id", session.user.id)
+  .single();
 
     if (employeeError) {
       console.error("Employee lookup failed:", employeeError);

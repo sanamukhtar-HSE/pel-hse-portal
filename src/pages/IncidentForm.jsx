@@ -101,8 +101,12 @@ console.log({
 });
 
 
-
+console.log("USER OBJECT:", user);
+console.log("USER TYPE:", JSON.stringify(user.user_type));
+console.log("AUTH USER ID:", JSON.stringify(user.auth_user_id));
+console.log("SITE ID:", JSON.stringify(user.site_id));
 const { data, error } = await supabase
+
   .from("incidents")
   .insert([
   {
@@ -131,6 +135,7 @@ const { data, error } = await supabase
 reporter_designation: user.designation,
 report_status: "Pending Approval",
 site_id: user.site_id,
+created_by: user.auth_user_id,
   },
 ])
     .select()

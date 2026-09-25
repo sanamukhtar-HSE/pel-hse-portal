@@ -9,7 +9,7 @@ import Investigation from "./pages/Investigation";
 import ActionTracker from "./pages/ActionTracker";
 import Reports from "./pages/Reports";
 import Login from "./pages/Login";
-
+import EditIncident from "./pages/EditIncident";
 import { UserProvider } from "./context/UserContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleRoute from "./components/RoleRoute";
@@ -58,6 +58,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+  path="/incident/:id/edit"
+  element={
+    <ProtectedRoute>
+      <EditIncident />
+    </ProtectedRoute>
+  }
+/>
 
 <Route
   path="/training/schedule/new"
@@ -89,7 +97,7 @@ function App() {
           <Route
             path="/incident/:id/approval"
             element={
-              <RoleRoute allowedRoles={["Admin", "Supervisor"]}>
+             <RoleRoute allowedRoles={["Admin", "HSE"]}>
                 <IncidentApproval />
               </RoleRoute>
             }

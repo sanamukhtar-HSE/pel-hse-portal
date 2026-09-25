@@ -27,6 +27,11 @@ const emptyAttendanceRow = () => ({
 function TrainingCalendar({ selectedSiteId, openSessionId }) {
   const { user } = useUser();
 
+  const canManageTraining =
+    user?.user_type === "Admin" ||
+    user?.user_type === "HSE" ||
+    user?.user_type === "Plant Incharge";
+
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -52,69 +57,62 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
 
   /*
     LOAD TRAINING SESSIONS
-
-    selectedSiteId comes from Training.jsx.
-
-    If a site is selected:
-    → only that site's training sessions are loaded.
-
-    If no site is selected:
-    → all sessions are loaded.
-
-    Training.jsx should already restrict non-admin users
-    to their assigned site.
   */
   useEffect(() => {
     loadTrainingSessions();
   }, [selectedSiteId]);
 
+  /*
+    OPEN TRAINING FROM REGISTER / EXTERNAL OPEN REQUEST
+  */
   useEffect(() => {
-  if (!openSessionId || sessions.length === 0) {
-    return;
-  }
+    if (!openSessionId || sessions.length === 0) {
+      return;
+    }
 
-  const session = sessions.find(
-    (item) =>
-      String(item.id) ===
-      String(openSessionId)
-  );
-
-  if (!session) {
-    return;
-  }
-
-  const eventData = {
-    id: Number(session.id),
-    title: session.title,
-    date: session.session_date,
-    ...session,
-    displayStatus:
-      getDisplayStatus(session),
-    siteName:
-      session.sites?.name ||
-      "Site not assigned",
-    trainingType:
-      session.training_types?.name ||
-      "Training",
-  };
-
-  setSelectedEvent(eventData);
-  setActiveModal("details");
-  setWorkflowMessage("");
-  setCompletionRemarks(
-    session.remarks || ""
-  );
-
-  if (session.status === "Completed") {
-    loadExistingAttendance(
-      Number(session.id)
+    const session = sessions.find(
+      (item) =>
+        String(item.id) ===
+        String(openSessionId)
     );
-  } else {
-    setAttendanceRows([
-      emptyAttendanceRow(),
-    ]);
-  }
-}, [openSessionId, sessions]);
+
+    if (!session) {
+      return;
+    }
+
+    const eventData = {
+      id: Number(session.id),
+      title: session.title,
+      date: session.session_date,
+      ...session,
+      displayStatus:
+        getDisplayStatus(session),
+      siteName:
+        session.sites?.name ||
+        "Site not assigned",
+      trainingType:
+        session.training_types?.name ||
+        "Training",
+    };
+
+    setSelectedEvent(eventData);
+    setActiveModal("details");
+    setWorkflowMessage("");
+
+    setCompletionRemarks(
+      session.remarks || ""
+    );
+
+    if (session.status === "Completed") {
+      loadExistingAttendance(
+        Number(session.id)
+      );
+    } else {
+      setAttendanceRows([
+        emptyAttendanceRow(),
+      ]);
+    }
+  }, [openSessionId, sessions]);
 
   async function loadTrainingSessions() {
     setLoading(true);
@@ -154,17 +152,19 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
           name
         )
       `)
-      .order("session_date", { ascending: true });
+      .order("session_date", {
+        ascending: true,
+      });
 
     if (
-  selectedSiteId &&
-  selectedSiteId !== "all"
-) {
-  query = query.eq(
-    "site_id",
-    selectedSiteId
-  );
-}
+      selectedSiteId &&
+      selectedSiteId !== "all"
+    ) {
+      query = query.eq(
+        "site_id",
+        selectedSiteId
+      );
+    }
 
     const { data, error } = await query;
 
@@ -186,6 +186,7 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
 
   function getDisplayStatus(session) {
     const today = new Date();
+
     today.setHours(0, 0, 0, 0);
 
     const eventDate = new Date(
@@ -201,19 +202,25 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
 
     if (
       eventDate < today &&
-      !finishedStatuses.includes(session.status)
+      !finishedStatuses.includes(
+        session.status
+      )
     ) {
       return "Overdue";
     }
 
     if (
-      eventDate.getTime() === today.getTime() &&
+      eventDate.getTime() ===
+        today.getTime() &&
       session.status === "Scheduled"
     ) {
       return "Due Today";
     }
 
-    return session.status || "Scheduled";
+    return (
+      session.status ||
+      "Scheduled"
+    );
   }
 
   function getEventColours(status) {
@@ -270,7 +277,8 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
       return "Time not set";
     }
 
-    const [hours, minutes] = time.split(":");
+    const [hours, minutes] =
+      time.split(":");
 
     const date = new Date();
 
@@ -281,10 +289,13 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
       0
     );
 
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    return date.toLocaleTimeString(
+      "en-US",
+      {
+        hour: "numeric",
+        minute: "2-digit",
+      }
+    );
   }
 
   function formatDate(dateValue) {
@@ -296,11 +307,14 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
       `${dateValue}T00:00:00`
     );
 
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
+    return date.toLocaleDateString(
+      "en-GB",
+      {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }
+    );
   }
 
   /*
@@ -312,7 +326,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
         getDisplayStatus(session);
 
       const colours =
-        getEventColours(displayStatus);
+        getEventColours(
+          displayStatus
+        );
 
       return {
         id: String(session.id),
@@ -351,12 +367,10 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
 
   /*
     WHEN USER CLICKS A CALENDAR EVENT
-
-    We load the session details AND check whether
-    attendance already exists.
   */
   async function handleEventClick(info) {
-    const sessionId = Number(info.event.id);
+    const sessionId =
+      Number(info.event.id);
 
     const eventData = {
       id: sessionId,
@@ -378,12 +392,13 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
       eventData.remarks || ""
     );
 
-    /*
-      If the session is already completed,
-      automatically load its saved attendance.
-    */
-    if (eventData.status === "Completed") {
-      await loadExistingAttendance(sessionId);
+    if (
+      eventData.status ===
+      "Completed"
+    ) {
+      await loadExistingAttendance(
+        sessionId
+      );
     } else {
       setAttendanceRows([
         emptyAttendanceRow(),
@@ -392,7 +407,7 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
   }
 
   /*
-    LOAD SAVED ATTENDANCE FROM SUPABASE
+    LOAD SAVED ATTENDANCE
   */
   async function loadExistingAttendance(
     sessionId
@@ -400,19 +415,23 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
     setAttendanceLoading(true);
     setWorkflowMessage("");
 
-    const { data, error } = await supabase
-      .from("training_attendance")
-      .select(`
-        participant_name,
-        participant_designation,
-        participant_company,
-        attendance_status,
-        absence_reason
-      `)
-      .eq("session_id", sessionId)
-      .order("id", {
-        ascending: true,
-      });
+    const { data, error } =
+      await supabase
+        .from("training_attendance")
+        .select(`
+          participant_name,
+          participant_designation,
+          participant_company,
+          attendance_status,
+          absence_reason
+        `)
+        .eq(
+          "session_id",
+          sessionId
+        )
+        .order("id", {
+          ascending: true,
+        });
 
     if (error) {
       console.error(
@@ -433,14 +452,19 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
       return;
     }
 
-    if (data && data.length > 0) {
+    if (
+      data &&
+      data.length > 0
+    ) {
       setAttendanceRows(
         data.map((row) => ({
           participant_name:
-            row.participant_name || "",
+            row.participant_name ||
+            "",
 
           participant_designation:
-            row.participant_designation || "",
+            row.participant_designation ||
+            "",
 
           participant_company:
             row.participant_company ||
@@ -451,14 +475,11 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
             "Present",
 
           absence_reason:
-            row.absence_reason || "",
+            row.absence_reason ||
+            "",
         }))
       );
     } else {
-      /*
-        Completed session but no attendance rows.
-        Keep one blank row so the user can add them.
-      */
       setAttendanceRows([
         emptyAttendanceRow(),
       ]);
@@ -500,23 +521,35 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
     ATTENDANCE ROW FUNCTIONS
   */
   function addAttendanceRow() {
-    setAttendanceRows((current) => [
-      ...current,
-      emptyAttendanceRow(),
-    ]);
+    if (!canManageTraining) {
+      return;
+    }
+
+    setAttendanceRows(
+      (current) => [
+        ...current,
+        emptyAttendanceRow(),
+      ]
+    );
   }
 
   function removeAttendanceRow(index) {
-    setAttendanceRows((current) => {
-      if (current.length === 1) {
-        return current;
-      }
+    if (!canManageTraining) {
+      return;
+    }
 
-      return current.filter(
-        (_, rowIndex) =>
-          rowIndex !== index
-      );
-    });
+    setAttendanceRows(
+      (current) => {
+        if (current.length === 1) {
+          return current;
+        }
+
+        return current.filter(
+          (_, rowIndex) =>
+            rowIndex !== index
+        );
+      }
+    );
   }
 
   function updateAttendanceRow(
@@ -524,38 +557,42 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
     field,
     value
   ) {
-    setAttendanceRows((current) =>
-      current.map((row, rowIndex) => {
-        if (rowIndex !== index) {
-          return row;
-        }
+    if (!canManageTraining) {
+      return;
+    }
 
-        const updatedRow = {
-          ...row,
-          [field]: value,
-        };
+    setAttendanceRows(
+      (current) =>
+        current.map(
+          (row, rowIndex) => {
+            if (
+              rowIndex !== index
+            ) {
+              return row;
+            }
 
-        if (
-          field ===
-            "attendance_status" &&
-          value === "Present"
-        ) {
-          updatedRow.absence_reason = "";
-        }
+            const updatedRow = {
+              ...row,
+              [field]: value,
+            };
 
-        return updatedRow;
-      })
+            if (
+              field ===
+                "attendance_status" &&
+              value === "Present"
+            ) {
+              updatedRow.absence_reason =
+                "";
+            }
+
+            return updatedRow;
+          }
+        )
     );
   }
 
   /*
     OPEN ATTENDANCE MODAL
-
-    For completed sessions:
-    → load existing attendance
-
-    For new sessions:
-    → blank attendance sheet
   */
   async function openAttendanceModal() {
     if (!selectedEvent) {
@@ -588,16 +625,23 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
     SAVE / UPDATE ATTENDANCE
   */
   async function saveAttendance() {
+    if (!canManageTraining) {
+      return;
+    }
+
     if (!selectedEvent) {
       return;
     }
 
     const validRows =
-      attendanceRows.filter((row) =>
-        row.participant_name.trim()
+      attendanceRows.filter(
+        (row) =>
+          row.participant_name.trim()
       );
 
-    if (validRows.length === 0) {
+    if (
+      validRows.length === 0
+    ) {
       setWorkflowMessage(
         "Please enter at least one participant name."
       );
@@ -674,11 +718,7 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
       }));
 
     /*
-      DELETE OLD RECORDS FIRST.
-
-      This allows the user to edit attendance
-      and save the updated sheet without creating
-      duplicate attendance records.
+      DELETE OLD RECORDS FIRST
     */
     const {
       error: deleteError,
@@ -712,7 +752,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
       error: attendanceError,
     } = await supabase
       .from("training_attendance")
-      .insert(attendanceData);
+      .insert(
+        attendanceData
+      );
 
     if (attendanceError) {
       console.error(
@@ -748,10 +790,6 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
 
     /*
       MARK SESSION COMPLETED
-
-      This works for both:
-      - first-time completion
-      - editing an already completed session
     */
     const {
       error: sessionError,
@@ -817,6 +855,10 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
     SAVE NOT CONDUCTED / RESCHEDULE
   */
   async function saveNotDoneUpdate() {
+    if (!canManageTraining) {
+      return;
+    }
+
     if (!selectedEvent) {
       return;
     }
@@ -899,7 +941,7 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
     }
 
     /*
-      IF RESCHEDULED, CREATE THE NEW SESSION
+      IF RESCHEDULED, CREATE NEW SESSION
     */
     if (shouldReschedule) {
       const {
@@ -990,12 +1032,20 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
 
   return (
     <>
+      {/* =====================================================
+          CALENDAR
+      ===================================================== */}
+
       <section className="training-section">
         <div className="training-section-heading">
           <div>
-            <span>Live Schedule</span>
+            <span>
+              Live Schedule
+            </span>
 
-            <h2>Training Calendar</h2>
+            <h2>
+              Training Calendar
+            </h2>
 
             <p>
               Training dates, locations, times
@@ -1059,7 +1109,7 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                   interactionPlugin,
                 ]}
                 initialView="dayGridMonth"
-                initialDate="2026-08-01"
+                initialDate={new Date()}
                 firstDay={1}
                 height="auto"
                 fixedWeekCount={false}
@@ -1081,7 +1131,10 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                         />
 
                         <span>
-                          {info.event.title}
+                          {
+                            info.event
+                              .title
+                          }
                         </span>
                       </div>
 
@@ -1091,7 +1144,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                             size={11}
                           />
 
-                          {props.siteName}
+                          {
+                            props.siteName
+                          }
                         </span>
 
                         <span>
@@ -1150,7 +1205,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                   </span>
 
                   <h2>
-                    {selectedEvent.title}
+                    {
+                      selectedEvent.title
+                    }
                   </h2>
                 </div>
 
@@ -1272,7 +1329,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                     </div>
 
                     <div>
-                      <span>Present</span>
+                      <span>
+                        Present
+                      </span>
 
                       <strong>
                         {
@@ -1283,7 +1342,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                     </div>
 
                     <div>
-                      <span>Absent</span>
+                      <span>
+                        Absent
+                      </span>
 
                       <strong>
                         {
@@ -1321,18 +1382,25 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                   Close
                 </button>
 
-                {selectedEvent.status !== "Completed" && (
-  <button
-    type="button"
-    className="training-event-not-done-button"
-    onClick={() => {
-      setActiveModal("not-done");
-      setWorkflowMessage("");
-    }}
-  >
-    Not Done
-  </button>
-)}
+                {canManageTraining &&
+                  selectedEvent.status !==
+                    "Completed" && (
+                    <button
+                      type="button"
+                      className="training-event-not-done-button"
+                      onClick={() => {
+                        setActiveModal(
+                          "not-done"
+                        );
+
+                        setWorkflowMessage(
+                          ""
+                        );
+                      }}
+                    >
+                      Not Done
+                    </button>
+                  )}
 
                 <button
                   type="button"
@@ -1344,7 +1412,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                   {selectedEvent.status ===
                   "Completed"
                     ? "View Attendance"
-                    : "Done"}
+                    : canManageTraining
+                    ? "Done"
+                    : "View Attendance"}
                 </button>
               </div>
             </div>
@@ -1356,7 +1426,8 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
       ===================================================== */}
 
       {selectedEvent &&
-        activeModal === "attendance" && (
+        activeModal ===
+          "attendance" && (
           <div
             className="training-event-modal-overlay"
             onMouseDown={
@@ -1375,7 +1446,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                     {selectedEvent.status ===
                     "Completed"
                       ? "Saved Training Record"
-                      : "Training Completion"}
+                      : canManageTraining
+                      ? "Training Completion"
+                      : "Training Record"}
                   </span>
 
                   <h2>
@@ -1400,13 +1473,22 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                   </span>
 
                   <strong>
-                    {selectedEvent.title} —{" "}
+                    {
+                      selectedEvent.title
+                    }{" "}
+                    —{" "}
                     {
                       selectedEvent.siteName
                     }
                   </strong>
                 </div>
               </div>
+
+              {!canManageTraining && (
+                <div className="training-workflow-message">
+                  Attendance is view-only for your role.
+                </div>
+              )}
 
               {attendanceLoading ? (
                 <div className="training-calendar-loading">
@@ -1462,6 +1544,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                               )
                             }
                             placeholder="Enter participant name"
+                            readOnly={
+                              !canManageTraining
+                            }
                           />
 
                           <input
@@ -1481,6 +1566,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                               )
                             }
                             placeholder="Designation"
+                            readOnly={
+                              !canManageTraining
+                            }
                           />
 
                           <input
@@ -1500,6 +1588,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                               )
                             }
                             placeholder="Company"
+                            readOnly={
+                              !canManageTraining
+                            }
                           />
 
                           <select
@@ -1517,6 +1608,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                                   .value
                               )
                             }
+                            disabled={
+                              !canManageTraining
+                            }
                           >
                             <option value="Present">
                               Present
@@ -1533,8 +1627,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                               row.absence_reason
                             }
                             disabled={
+                              !canManageTraining ||
                               row.attendance_status !==
-                              "Absent"
+                                "Absent"
                             }
                             onChange={(
                               event
@@ -1555,40 +1650,44 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                             }
                           />
 
-                          <button
-                            type="button"
-                            className="training-remove-row-button"
-                            onClick={() =>
-                              removeAttendanceRow(
-                                index
-                              )
-                            }
-                            disabled={
-                              attendanceRows.length ===
-                              1
-                            }
-                            aria-label="Remove participant"
-                          >
-                            <Trash2
-                              size={17}
-                            />
-                          </button>
+                          {canManageTraining && (
+                            <button
+                              type="button"
+                              className="training-remove-row-button"
+                              onClick={() =>
+                                removeAttendanceRow(
+                                  index
+                                )
+                              }
+                              disabled={
+                                attendanceRows.length ===
+                                1
+                              }
+                              aria-label="Remove participant"
+                            >
+                              <Trash2
+                                size={17}
+                              />
+                            </button>
+                          )}
                         </div>
                       )
                     )}
                   </div>
 
-                  <button
-                    type="button"
-                    className="training-add-row-button"
-                    onClick={
-                      addAttendanceRow
-                    }
-                  >
-                    <Plus size={17} />
+                  {canManageTraining && (
+                    <button
+                      type="button"
+                      className="training-add-row-button"
+                      onClick={
+                        addAttendanceRow
+                      }
+                    >
+                      <Plus size={17} />
 
-                    Add Participant
-                  </button>
+                      Add Participant
+                    </button>
+                  )}
 
                   <label className="training-workflow-field">
                     <span>
@@ -1606,6 +1705,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                         )
                       }
                       placeholder="Optional completion remarks"
+                      readOnly={
+                        !canManageTraining
+                      }
                     />
                   </label>
                 </>
@@ -1613,7 +1715,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
 
               {workflowMessage && (
                 <div className="training-workflow-message">
-                  {workflowMessage}
+                  {
+                    workflowMessage
+                  }
                 </div>
               )}
 
@@ -1634,24 +1738,26 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                   Back
                 </button>
 
-                <button
-                  type="button"
-                  className="training-event-done-button"
-                  onClick={
-                    saveAttendance
-                  }
-                  disabled={
-                    attendanceSaving ||
-                    attendanceLoading
-                  }
-                >
-                  {attendanceSaving
-                    ? "Saving..."
-                    : selectedEvent.status ===
-                      "Completed"
-                    ? "Update Attendance"
-                    : "Save Attendance"}
-                </button>
+                {canManageTraining && (
+                  <button
+                    type="button"
+                    className="training-event-done-button"
+                    onClick={
+                      saveAttendance
+                    }
+                    disabled={
+                      attendanceSaving ||
+                      attendanceLoading
+                    }
+                  >
+                    {attendanceSaving
+                      ? "Saving..."
+                      : selectedEvent.status ===
+                        "Completed"
+                      ? "Update Attendance"
+                      : "Save Attendance"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1662,7 +1768,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
       ===================================================== */}
 
       {selectedEvent &&
-        activeModal === "not-done" && (
+        activeModal ===
+          "not-done" &&
+        canManageTraining && (
           <div
             className="training-event-modal-overlay"
             onMouseDown={
@@ -1707,7 +1815,10 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
                   </span>
 
                   <strong>
-                    {selectedEvent.title} —{" "}
+                    {
+                      selectedEvent.title
+                    }{" "}
+                    —{" "}
                     {
                       selectedEvent.siteName
                     }
@@ -1785,7 +1896,9 @@ function TrainingCalendar({ selectedSiteId, openSessionId }) {
 
               {workflowMessage && (
                 <div className="training-workflow-message">
-                  {workflowMessage}
+                  {
+                    workflowMessage
+                  }
                 </div>
               )}
 

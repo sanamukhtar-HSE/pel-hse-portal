@@ -2,18 +2,23 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import "../styles/IncidentDetails.css";
+import { useUser } from "../context/UserContext";
 
 function IncidentApproval() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user, loading: userLoading } = useUser();
 
   const [incident, setIncident] = useState(null);
   const [decision, setDecision] = useState("");
   const [comments, setComments] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    loadIncident();
-  }, []);
+    if (!userLoading && user) {
+      loadIncident();
+    }
+  }, [userLoading, user, id]);
 
   async function loadIncident() {
     const { data, error } = await supabase
@@ -24,6 +29,7 @@ function IncidentApproval() {
 
     if (error) {
       console.error(error);
+      alert("Unable to load incident.");
       return;
     }
 
@@ -36,24 +42,48 @@ function IncidentApproval() {
       return;
     }
 
+    if (!user) {
+      alert("User information not available.");
+      return;
+    }
+
+    setSaving(true);
+
     const { error } = await supabase
-      .from("incidents")
-      .update({
-        report_status: decision,
-      })
-      .eq("id", id);
+      .from("incident_approvals")
+      .insert({
+        incident_id: Number(id),
+        approval_level: "HSE",
+        approver_name: user.full_name,
+        approver_email: user.email,
+        decision: decision === "Rejected" ? "Disapproved" : "Approved",
+        comments: comments,
+        decision_date: new Date().toISOString(),
+        approver_auth_user_id: user.auth_user_id,
+      });
 
     if (error) {
+      console.error(error);
       alert(error.message);
+      setSaving(false);
       return;
     }
 
     alert("Decision saved successfully.");
 
-    navigate(`/incident/${id}`);
+    navigate("/incident/" + id);
   }
 
-  if (!incident) return <h2>Loading...</h2>;
+  if (userLoading || !incident) {
+    return <h2>Loading...</h2>;
+  }
+
+  if (
+    user.user_type !== "Admin" &&
+    user.user_type !== "HSE"
+  ) {
+    return <h2>You are not authorized to approve incidents.</h2>;
+  }
 
   return (
     <div className="container">
@@ -62,12 +92,12 @@ function IncidentApproval() {
 
         <button
           className="back-button"
-          onClick={() => navigate(`/incident/${id}`)}
+          onClick={() => navigate("/incident/" + id)}
         >
           ← Incident Details
         </button>
 
-        <h1>Supervisor Approval</h1>
+        <h1>HSE Approval</h1>
 
         <p>{incident.incident_no}</p>
 
@@ -77,11 +107,11 @@ function IncidentApproval() {
 
         <h2>Current Status</h2>
 
-        <p>{incident.report_status}</p>
+        <p>{incident.approval_status}</p>
 
         <br />
 
-        <h2>Supervisor Comments</h2>
+        <h2>Approval Comments</h2>
 
         <textarea
           rows="5"
@@ -126,8 +156,9 @@ function IncidentApproval() {
         <button
           className="print-button"
           onClick={saveDecision}
+          disabled={saving}
         >
-          Save Decision
+          {saving ? "Saving..." : "Save Decision"}
         </button>
 
       </div>

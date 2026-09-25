@@ -21,6 +21,28 @@ function Training() {
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const isAdmin = user?.user_type === "Admin";
+  const isHSE = user?.user_type === "HSE";
+  const isPlantIncharge =
+    user?.user_type === "Plant Incharge";
+  const isSupervisor =
+    user?.user_type === "Supervisor";
+
+  // Only Admin can manually filter sites.
+  const isSiteFilterEnabled = isAdmin;
+
+
+  // Employees, HSE and Plant Incharge are locked
+  // to their assigned site.
+  const isAssignedSiteUser =
+    user?.user_type === "Employee" ||
+    user?.user_type === "HSE" ||
+    user?.user_type === "Plant Incharge";
+
+  // HSE and Plant Incharge can manage training.
+  const canManageTraining =
+    isAdmin || isHSE || isPlantIncharge;
+
   useEffect(() => {
     if (user) {
       loadSites();
@@ -40,22 +62,34 @@ function Training() {
       .order("name", { ascending: true });
 
     if (error) {
-      console.error("Training sites loading failed:", error);
+      console.error(
+        "Training sites loading failed:",
+        error
+      );
       return;
     }
 
     setSites(data || []);
 
-    /*
-      Normal users are automatically locked to their
-      assigned site.
-    */
+    // Admin starts with All Sites.
+    if (isAdmin) {
+      setSelectedSiteId("");
+      return;
+    }
+
+    // Employee, HSE and Plant Incharge are
+    // automatically locked to their assigned site.
     if (
-      user?.user_type !== "Admin" &&
-      user?.user_type !== "HSE" &&
+      isAssignedSiteUser &&
       user?.site_id
     ) {
       setSelectedSiteId(String(user.site_id));
+      return;
+    }
+
+    // Supervisor can view all sites.
+    if (isSupervisor) {
+      setSelectedSiteId("");
     }
   }
 
@@ -96,27 +130,54 @@ function Training() {
           name
         )
       `)
-      .order("session_date", { ascending: true });
+      .order("session_date", {
+        ascending: true,
+      });
 
     /*
-      Admin and HSE users can view/filter all sites.
+      SITE ACCESS RULES
 
-      All other users only see their assigned site.
+      Admin:
+        Can view all sites and use the site filter.
+
+      Supervisor:
+        Can view all sites.
+
+      Employee:
+        Can view only assigned site.
+
+      HSE:
+        Can view only assigned site.
+
+      Plant Incharge:
+        Can view only assigned site.
     */
-    if (
-      user?.user_type !== "Admin" &&
-      user?.user_type !== "HSE" &&
-      user?.site_id
+
+    if (isAssignedSiteUser) {
+      if (user?.site_id) {
+        query = query.eq(
+          "site_id",
+          user.site_id
+        );
+      }
+    } else if (
+      isAdmin &&
+      selectedSiteId
     ) {
-      query = query.eq("site_id", user.site_id);
-    } else if (selectedSiteId) {
-      query = query.eq("site_id", selectedSiteId);
+      query = query.eq(
+        "site_id",
+        selectedSiteId
+      );
     }
 
     const { data, error } = await query;
 
     if (error) {
-      console.error("Training page loading failed:", error);
+      console.error(
+        "Training page loading failed:",
+        error
+      );
+
       setSessions([]);
       setErrorMessage(error.message);
       setLoadingSessions(false);
@@ -135,7 +196,8 @@ function Training() {
       `${session.session_date}T00:00:00`
     );
 
-    const savedStatus = session.status || "Scheduled";
+    const savedStatus =
+      session.status || "Scheduled";
 
     const finishedStatuses = [
       "Completed",
@@ -152,7 +214,8 @@ function Training() {
     }
 
     if (
-      sessionDate.getTime() === today.getTime() &&
+      sessionDate.getTime() ===
+        today.getTime() &&
       savedStatus === "Scheduled"
     ) {
       return "Due Today";
@@ -165,7 +228,8 @@ function Training() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const sevenDaysFromNow = new Date(today);
+    const sevenDaysFromNow =
+      new Date(today);
 
     sevenDaysFromNow.setDate(
       sevenDaysFromNow.getDate() + 7
@@ -192,7 +256,9 @@ function Training() {
         scheduled += 1;
       }
 
-      if (displayStatus === "Completed") {
+      if (
+        displayStatus === "Completed"
+      ) {
         completed += 1;
       }
 
@@ -209,7 +275,9 @@ function Training() {
         dueThisWeek += 1;
       }
 
-      if (displayStatus === "Overdue") {
+      if (
+        displayStatus === "Overdue"
+      ) {
         overdue += 1;
       }
     });
@@ -228,9 +296,10 @@ function Training() {
 
     return sessions
       .filter((session) => {
-        const sessionDate = new Date(
-          `${session.session_date}T00:00:00`
-        );
+        const sessionDate =
+          new Date(
+            `${session.session_date}T00:00:00`
+          );
 
         const displayStatus =
           getSessionStatus(session);
@@ -252,7 +321,8 @@ function Training() {
     return sessions
       .filter(
         (session) =>
-          getSessionStatus(session) === "Overdue"
+          getSessionStatus(session) ===
+          "Overdue"
       )
       .sort(
         (first, second) =>
@@ -266,7 +336,8 @@ function Training() {
     return sessions
       .filter(
         (session) =>
-          getSessionStatus(session) === "Completed"
+          getSessionStatus(session) ===
+          "Completed"
       )
       .sort(
         (first, second) =>
@@ -285,11 +356,14 @@ function Training() {
       `${dateValue}T00:00:00`
     );
 
-    return date.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    return date.toLocaleDateString(
+      "en-GB",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
   }
 
   function formatTime(timeValue) {
@@ -309,10 +383,13 @@ function Training() {
       0
     );
 
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    return date.toLocaleTimeString(
+      "en-US",
+      {
+        hour: "numeric",
+        minute: "2-digit",
+      }
+    );
   }
 
   function getMonth(dateValue) {
@@ -325,9 +402,12 @@ function Training() {
     );
 
     return date
-      .toLocaleDateString("en-US", {
-        month: "short",
-      })
+      .toLocaleDateString(
+        "en-US",
+        {
+          month: "short",
+        }
+      )
       .toUpperCase();
   }
 
@@ -416,7 +496,8 @@ function Training() {
           </h3>
 
           <p>
-            Please wait while the records are loaded.
+            Please wait while the records
+            are loaded.
           </p>
         </div>
       );
@@ -426,7 +507,8 @@ function Training() {
       return (
         <div className="training-empty-state compact">
           <div>
-            {sectionType === "completed"
+            {sectionType ===
+            "completed"
               ? "✓"
               : "📅"}
           </div>
@@ -489,7 +571,9 @@ function Training() {
                   </span>
                 </div>
 
-                <h3>{session.title}</h3>
+                <h3>
+                  {session.title}
+                </h3>
 
                 <p className="training-event-site">
                   📍 {getSiteName(session)}
@@ -537,10 +621,6 @@ function Training() {
     );
   }
 
-  const isSiteFilterEnabled =
-    user?.user_type === "Admin" ||
-    user?.user_type === "HSE";
-
   return (
     <div className="training-page">
       <div className="training-container">
@@ -557,9 +637,9 @@ function Training() {
               ← Dashboard
             </button>
 
-            {(user?.user_type === "Admin" ||
-              user?.user_type === "HSE") && (
+            {canManageTraining && (
               <div className="training-header-actions">
+
                 <button
                   type="button"
                   className="training-secondary-button"
@@ -581,6 +661,7 @@ function Training() {
                 >
                   + Schedule Training
                 </button>
+
               </div>
             )}
           </div>
@@ -595,10 +676,11 @@ function Training() {
             </h1>
 
             <p>
-              Plan training activities, monitor
-              upcoming schedules, track completion
-              and identify overdue sessions across
-              PEPL locations.
+              Plan training activities,
+              monitor upcoming schedules,
+              track completion and identify
+              overdue sessions across PEPL
+              locations.
             </p>
           </div>
         </header>
@@ -647,54 +729,46 @@ function Training() {
           </button>
         </nav>
 
-        <div className="training-filter-bar">
-          <div className="training-filter-label">
-            <span>
-              Filter by Site
-            </span>
+        {/* SITE FILTER
+            Admin ONLY.
+            Employee, HSE and Plant Incharge
+            do not see this section at all.
+        */}
+        {isSiteFilterEnabled && (
+          <div className="training-filter-bar">
+            <div className="training-filter-label">
+              <span>
+                Filter by Site
+              </span>
 
-            <strong>
-              {selectedSiteId === ""
-                ? "All Sites"
-                : sites.find(
-                    (site) =>
-                      String(site.id) ===
-                      String(selectedSiteId)
-                  )?.name ||
-                  "Selected Site"}
-            </strong>
-          </div>
+              <strong>
+                {selectedSiteId === ""
+                  ? "All Sites"
+                  : sites.find(
+                      (site) =>
+                        String(site.id) ===
+                        String(
+                          selectedSiteId
+                        )
+                    )?.name ||
+                    "Selected Site"}
+              </strong>
+            </div>
 
-          <select
-            className="training-site-filter"
-            value={selectedSiteId}
-            onChange={(event) =>
-              setSelectedSiteId(
-                event.target.value
-              )
-            }
-            disabled={
-              !isSiteFilterEnabled
-            }
-          >
-            {isSiteFilterEnabled && (
+            <select
+              className="training-site-filter"
+              value={selectedSiteId}
+              onChange={(event) =>
+                setSelectedSiteId(
+                  event.target.value
+                )
+              }
+            >
               <option value="">
                 All Sites
               </option>
-            )}
 
-            {sites
-              .filter((site) => {
-                if (isSiteFilterEnabled) {
-                  return true;
-                }
-
-                return (
-                  String(site.id) ===
-                  String(user?.site_id)
-                );
-              })
-              .map((site) => (
+              {sites.map((site) => (
                 <option
                   key={site.id}
                   value={site.id}
@@ -702,8 +776,9 @@ function Training() {
                   {site.name}
                 </option>
               ))}
-          </select>
-        </div>
+            </select>
+          </div>
+        )}
 
         {errorMessage && (
           <div className="training-form-message">
@@ -716,6 +791,7 @@ function Training() {
         {activeTab === "overview" && (
           <>
             <section className="training-kpi-grid">
+
               <article className="training-kpi-card">
                 <div className="training-kpi-icon">
                   📅
@@ -803,6 +879,7 @@ function Training() {
                   </small>
                 </div>
               </article>
+
             </section>
 
             <section className="training-section">
@@ -906,6 +983,7 @@ function Training() {
 
         {activeTab === "register" && (
           <section className="training-section">
+
             <div className="training-section-heading">
               <div>
                 <span>
@@ -960,9 +1038,12 @@ function Training() {
               </div>
             ) : (
               <div className="training-record-list">
+
                 {sessions.map((session) => {
                   const displayStatus =
-                    getSessionStatus(session);
+                    getSessionStatus(
+                      session
+                    );
 
                   return (
                     <article
@@ -977,6 +1058,7 @@ function Training() {
                         cursor: "pointer",
                       }}
                     >
+
                       <div className="training-record-person">
                         <div className="training-record-avatar">
                           {session.title
@@ -1011,7 +1093,9 @@ function Training() {
                       </div>
 
                       <div className="training-record-detail">
-                        <span>Date</span>
+                        <span>
+                          Date
+                        </span>
 
                         <strong>
                           {formatDate(
@@ -1029,9 +1113,11 @@ function Training() {
                           {displayStatus}
                         </span>
                       </div>
+
                     </article>
                   );
                 })}
+
               </div>
             )}
           </section>
